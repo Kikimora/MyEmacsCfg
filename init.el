@@ -1,9 +1,7 @@
-(setq load-path (cons "~/.emacs.d/lib/" load-path))
+(add-to-list 'load-path "~/.emacs.d/lib/")
 (load "~/.emacs.d/utils.el")
-(load "~/.emacs.d/tempo-cc-mode.el")
 (load "~/.emacs.d/look&feel.el")
 (load "~/.emacs.d/major-modes.el")
-(load "~/.emacs.d/lib/idutils.el")
 (load "~/.emacs.d/auctex-setup.el")
 
 (custom-set-variables
@@ -18,6 +16,7 @@
  '(glasses-original-separator "")
  '(glasses-separator "")
  '(hippie-expand-try-functions-list (quote (try-expand-all-abbrevs try-expand-dabbrev try-expand-dabbrev-all-buffers try-expand-dabbrev-from-kill try-complete-file-name-partially try-complete-file-name try-complete-lisp-symbol-partially try-complete-lisp-symbol)))
+ '(locate-command "mdfind")
  '(mumamo-chunk-coloring (quote no-chunks-colored))
  '(nxhtml-default-encoding (quote utf-8))
  '(nxhtml-skip-welcome t)

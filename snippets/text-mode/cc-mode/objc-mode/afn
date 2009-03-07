@@ -1,0 +1,4 @@
+- (void)awakeFromNib {
+    [super awakeFromNib];
+    $0;
+}

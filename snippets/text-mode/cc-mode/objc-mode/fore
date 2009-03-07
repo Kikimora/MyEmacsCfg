@@ -1,0 +1,3 @@
+for (${1:id} ${2:foo} in ${3:collection}) {
+    $0    
+}

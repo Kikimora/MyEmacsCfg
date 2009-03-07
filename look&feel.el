@@ -21,9 +21,6 @@
 (global-set-key "\C-x\C-b" 'electric-buffer-list)
 (global-set-key "\C-x\C-m" 'compile)
 (global-set-key "\M-/" 'hippie-expand)
-(global-set-key "\C-c\C-j" 'tempo-complete-tag)
-(global-set-key "\C-c\C-f" 'tempo-forward-mark)
-(global-set-key "\C-c\C-b" 'tempo-backward-mark)
 (global-set-key [f3] 'next-error)
 (global-set-key [f4] (lambda () (interactive) (next-error -1)))
 (global-set-key "\C-z" 'shell)
@@ -145,9 +142,12 @@ new buffer."
 
 (load "~/.emacs.d/lib/textmate.el")
 
-(setq load-path (cons "~/.emacs.d/lib/w3m" load-path))
+(add-to-list 'load-path "~/.emacs.d/lib/w3m")
 (require 'w3m-load)
 
 (require 'idutils)
 
-
+(add-to-list 'load-path "~/.emacs.d/lib/yasnippet")
+(require 'yasnippet)
+(yas/initialize)
+(yas/load-directory "~/.emacs.d/snippets")

@@ -1,0 +1,6 @@
+#onbj-2.0 property declaration together with corresponding variable and synthesize statement
+# --
+${1:id} ${2:foo};
+$0
+@property (${3:readonly}, ${4:nonatomic}, ${5:retain}) $1 $2;
+@synthesize ${2:$(if (string-match "\*.+" text) (substring text 1) text)};

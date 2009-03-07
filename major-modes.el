@@ -1,8 +1,19 @@
-;;(load "~/.emacs.d/lib/fptools/CONTRIB/haskell-modes/emacs/haskell-site-file.el")
+(load "haskell-site-file.el")
 (load "~/.emacs.d/docsetview.el")
 (load "~/.emacs.d/lib/objc-c-mode.el")
+(load "~/.emacs.d/lib/js2.el")
 
-(setq auto-mode-alist (append '(("\\.h$" . objc-mode) ("\\.m$" . objc-mode)) auto-mode-alist))
+(setq auto-mode-alist (append '(("\\.h$" . objc-mode) ("\\.m$" . objc-mode) ("\\.js$" . js2-mode)) auto-mode-alist))
+
+(font-lock-add-keywords 'objc-mode
+    ;;fontify Objc 2.0 keywords
+  '(("\\<\\(@required\\|@synthesize\\|@optional\\|@property\\|@defs\\|YES\\|NO\\)\\>" . font-lock-keyword-face)
+    ;;[myObject <'methodWithArg:'> arg]
+    ("\\<\\w+:" . font-lock-function-name-face)
+    ;;[NSFileManager <'defaultManager'>]
+    ("\\[\\w+ \\(\\w+\\)\\]" . (1  font-lock-function-name-face))
+    ;;[[NSFileManager defaultManager] <'someMethod'>]
+    ("\\] \\(\\w+\\)" . (1  font-lock-function-name-face)))) 
 
 (defun find-one-of (candidates name)
   (if candidates
@@ -24,6 +35,7 @@
 (defun my-c-mode-common-hook ()
   (setq compilation-window-height 10)
   (setq c-basic-offset 4 indent-tabs-mode nil)
+  (setq tab-width 4)
   (textmate-mode)
   (c-subword-mode)
   (local-set-key "\C-ch" 'c-switch-to-header)
