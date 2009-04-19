@@ -1,6 +1,6 @@
 ;;; w3m-hist.el --- the history management system for emacs-w3m
 
-;; Copyright (C) 2001, 2002, 2003, 2004
+;; Copyright (C) 2001, 2002, 2003, 2004, 2005
 ;; TSUCHIYA Masatoshi <tsuchiya@namazu.org>
 
 ;; Author: Katsumi Yamaoka <yamaoka@jpl.org>
@@ -19,9 +19,9 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program; if not, you can either send email to this
-;; program's maintainer or write to: The Free Software Foundation,
-;; Inc.; 59 Temple Place, Suite 330; Boston, MA 02111-1307, USA.
+;; along with this program; see the file COPYING.  If not, write to
+;; the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+;; Boston, MA 02110-1301, USA.
 
 ;;; Commentary:
 
@@ -35,17 +35,6 @@
 
 (eval-when-compile
   (require 'cl))
-
-(eval-and-compile
-  (dont-compile
-    (condition-case nil
-	:symbol-for-testing-whether-colon-keyword-is-available-or-not
-      (void-variable
-       (let (w3m-colon-keywords)
-	 (load "w3m-kwds.el" nil t t)
-	 (while w3m-colon-keywords
-	   (set (car w3m-colon-keywords) (car w3m-colon-keywords))
-	   (setq w3m-colon-keywords (cdr w3m-colon-keywords))))))))
 
 (defcustom w3m-history-reuse-history-elements nil
   "Non-nil means reuse the history element when re-visiting the page.
@@ -648,7 +637,9 @@ it works although it may not be perfect."
 	       (setq window (get-buffer-window (current-buffer) 'all-frames))
 	       (when window
 		 (set-window-start window start))
-	       (goto-char (min position (point-max)))))
+	       (goto-char (min position (point-max)))
+	       (let ((deactivate-mark nil))
+		 (run-hooks 'w3m-after-cursor-move-hook))))
 	    ((interactive-p)
 	     (message "No cursor position saved"))))))
 
@@ -663,6 +654,35 @@ it works although it may not be perfect."
       (setq w3m-history-flat (list element)
 	    w3m-history (list (list nil (list 0) nil)
 			      (list (car element) (cadr element)))))))
+
+(defun w3m-history-slimmed-history-flat ()
+  "Return slimmed history."
+  (let ((position (cadar w3m-history))
+	flat-map new-flat)
+    (dolist (l w3m-history-flat)
+      (setq flat-map (cons (cons (nth 2 l) l)
+			   flat-map)))
+    (setq new-flat (cons (cdr (assoc position flat-map)) nil))
+    (let ((pos (w3m-history-previous-position position)))
+      (while pos
+	(setq new-flat (cons (cdr (assoc pos flat-map))
+			     new-flat))
+	(setq pos (w3m-history-previous-position pos))))
+    (let ((pos (w3m-history-next-position position)))
+      (while pos
+	(setq new-flat (cons (cdr (assoc pos flat-map))
+			     new-flat))
+	(setq pos (w3m-history-next-position pos))))
+    new-flat))
+
+(defun w3m-history-slim ()
+  "Slim the history.
+This makes the history slim so that it may have only the pages that
+are accessible by PREV and NEXT operations."
+  (interactive)
+  (let ((position (cadar w3m-history)))
+    (setq w3m-history-flat (w3m-history-slimmed-history-flat))
+    (w3m-history-tree position)))
 
 (eval-when-compile
   (defvar w3m-arrived-db)

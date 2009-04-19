@@ -1,3 +1,3 @@
 #!/bin/sh
 
-find . -name "*.el" -exec emacs --batch --eval "(byte-compile-file \"{}\")" \;
+find . -name "*.el" -exec /Applications/MacPorts/Emacs.app/Contents/MacOS/Emacs --batch --eval "(byte-compile-file \"{}\")" \;

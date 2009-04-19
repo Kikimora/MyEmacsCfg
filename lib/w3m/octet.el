@@ -19,8 +19,8 @@
 
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs; see the file COPYING.  If not, write to the
-;; Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-;; Boston, MA 02111-1307, USA.
+;; Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+;; Boston, MA 02110-1301, USA.
 
 ;;; Commentary:
 ;;
@@ -214,7 +214,7 @@ nil in NEW-TYPE means filtering is completed.")
 		       0)
 	      1))
 	1))))
- ((>= emacs-major-version 21)
+ (t
   (defun octet-decode-image (ignore &rest args)
     (let (image)
       (if (image-type-available-p (car args))
@@ -224,9 +224,7 @@ nil in NEW-TYPE means filtering is completed.")
 		(progn (erase-buffer)
 		       (insert-image image) 0)
 	      1))
-	1))))
- (t
-  (defalias 'octet-decode-image 'ignore)))
+	1)))))
 
 (defun octet-decode-u8-text (&rest args)
   (let ((string (buffer-string)))
@@ -404,7 +402,7 @@ If optional CONTENT-TYPE is specified, it is used for type guess."
 	(with-current-buffer from
 	  (if (setq extent (extent-at (point-min) nil nil nil 'at))
 	      (setq glyph (extent-end-glyph extent))))
-	(insert-buffer from)
+	(insert-buffer-substring from)
 	(if glyph
 	    (set-extent-end-glyph (make-extent (point) (point))
 				  glyph))))

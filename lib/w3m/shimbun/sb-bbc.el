@@ -1,6 +1,7 @@
 ;;; sb-bbc.el --- shimbun backend for BBC UK
 
-;; Copyright (C) 2003, 2004, 2005 Koichiro Ohba <koichiro@meadowy.org>
+;; Copyright (C) 2003, 2004, 2005, 2006, 2007
+;; Koichiro Ohba <koichiro@meadowy.org>
 
 ;; Author: Koichiro Ohba <koichiro@meadowy.org>
 ;; Keywords: news
@@ -19,9 +20,9 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program; if not, you can either send email to this
-;; program's maintainer or write to: The Free Software Foundation,
-;; Inc.; 59 Temple Place, Suite 330; Boston, MA 02111-1307, USA.
+;; along with this program; see the file COPYING.  If not, write to
+;; the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+;; Boston, MA 02110-1301, USA.
 
 ;;; Commentary:
 
@@ -33,25 +34,50 @@
 (luna-define-class shimbun-bbc (shimbun-rss) ())
 
 (defvar shimbun-bbc-url
-  "http://news.bbc.co.uk/rss/newsonline_uk_edition/world/rss091.xml")
-(defvar shimbun-bbc-groups '("news"))
+  "http://newsrss.bbc.co.uk/rss/newsonline_uk_edition")
 (defvar shimbun-bbc-from-address  "newsonline@bbc.co.uk")
 (defvar shimbun-bbc-content-start
-  "\\(<!-- \\(E I\\(BYL\\|IMA\\)\\|S I\\(BOX\\|IMA\\)\\) -->\\)")
+  (concat "<!-- "
+	  (regexp-opt '("E IBYL" "E IIMA" "S IBOX" "S IMA" "S BO"))
+	  " -->"))
 (defvar shimbun-bbc-content-end "<!-- E BO -->")
 
-(luna-define-method shimbun-rss-build-message-id
-  ((shimbun shimbun-bbc) url date)
-;;;<DEBUG>
-;;  (shimbun-bbc-build-message-id url))
-;;
-;;(defun shimbun-bbc-build-message-id (url)
-;;;</DEBUG>
-  (if (string-match "/hi/\\(.+\\)\\.stm" url)
-      (let ((elems (nreverse (split-string (match-string 1 url) "/"))))
-	(concat "<" (car elems) "@" (mapconcat 'identity (cdr elems) ".")
-		".bbc.co.uk>"))
-    (error "Cannot find message-id base")))
+(defvar shimbun-bbc-path-alist
+  '(("front_page" . "/front_page/rss.xml")
+    ;; use the name "news" here to be backward compatible
+    ;; ("world" . "/world/rss.xml")
+    ("news" . "/world/rss.xml")
+    ("uk" . "/uk/rss.xml")
+    ("england" . "/england/rss.xml")
+    ("northern_ireland" . "/northern_ireland/rss.xml")
+    ("scotland" . "/scotland/rss.xml")
+    ("wales" . "/wales/rss.xml")
+    ("business" . "/business/rss.xml")
+    ("politics" . "/uk_politics/rss.xml")
+    ("health" . "/health/rss.xml")
+    ("education" . "/education/rss.xml")
+    ("science" . "/sci/tech/rss.xml")
+    ("technology" . "/technology/rss.xml")
+    ("entertainment" . "/entertainment/rss.xml")
+    ("talking_point" . "/talking_point/rss.xml")
+    ("magazine" . "/magazine/rss.xml")
+    ("week_at-a-glance" . "/week_at-a-glance/rss.xml")
+    ("programmes" . "programmes/rss.xml")
+    ("latest_stories" . "/latest_published_stories/rss.xml")))
+
+(defvar shimbun-bbc-x-face-alist
+  '(("default" . "\
+Face: iVBORw0KGgoAAAANSUhEUgAAACoAAAAOAgMAAAAkkGboAAAADFBMVEW7uLJ/e2z////09PP
+ b5J9PAAAAjElEQVQI12OYGhqaGRoaBqQSGLJWrZq2atVKIDWBIev/qmnrf63M2v8KyBatmrYwfGW
+ WaByQLeM1beGRlRn+h4BsqahpC5euzNUCqRcEqhFfmfgKxBaIm7aQ9SWELXVp2sK1molgNfJC0xZ
+ +1IToFfWbtjDkZbZoEJB9/tW0Nf9WZm34NQHFDaEItwEAmSVN3A2XO9kAAAAASUVORK5CYII=")))
+
+(defvar shimbun-bbc-groups (mapcar 'car shimbun-bbc-path-alist))
+
+(luna-define-method shimbun-index-url ((shimbun shimbun-bbc))
+  (concat shimbun-bbc-url
+	  (cdr (assoc (shimbun-current-group-internal shimbun)
+		      shimbun-bbc-path-alist))))
 
 (provide 'sb-bbc)
 

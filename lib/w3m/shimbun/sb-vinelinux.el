@@ -1,6 +1,7 @@
 ;;; sb-vinelinux.el --- shimbun backend class for vinelinux web site. -*- coding: iso-2022-7bit; -*-
 
-;; Copyright (C) 2001, 2002, 2003, 2004 NAKAJIMA Mikio <minakaji@namazu.org>
+;; Copyright (C) 2001, 2002, 2003, 2004, 2006
+;; NAKAJIMA Mikio <minakaji@namazu.org>
 
 ;; Author: NAKAJIMA Mikio <minakaji@namazu.org>
 ;; Keywords: news
@@ -18,9 +19,9 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program; if not, you can either send email to this
-;; program's maintainer or write to: The Free Software Foundation,
-;; Inc.; 59 Temple Place, Suite 330; Boston, MA 02111-1307, USA.
+;; along with this program; see the file COPYING.  If not, write to
+;; the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+;; Boston, MA 02110-1301, USA.
 
 ;;; Commentary:
 
@@ -32,7 +33,9 @@
 
 (defconst shimbun-vinelinux-url "http://www.vinelinux.org")
 (defconst shimbun-vinelinux-group-path-alist
-  '(("errata.3x.i386" . "errata/3x/i386.html")
+  '(("errata.4x.i386" . "errata/4x/i386.html")
+    ("errata.4x.ppc" . "errata/4x/ppc.html")
+    ("errata.3x.i386" . "errata/3x/i386.html")
     ("errata.3x.ppc" . "errata/3x/ppc.html")
     ("errata.3x.alpha" . "errata/3x/alpha.html")
     ("errata.25x.i386" . "errata/25x/i386.html")

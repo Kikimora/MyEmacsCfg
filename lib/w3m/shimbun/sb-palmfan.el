@@ -18,9 +18,9 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program; if not, you can either send email to this
-;; program's maintainer or write to: The Free Software Foundation,
-;; Inc.; 59 Temple Place, Suite 330; Boston, MA 02111-1307, USA.
+;; along with this program; see the file COPYING.  If not, write to
+;; the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+;; Boston, MA 02110-1301, USA.
 
 ;;; Code:
 (require 'shimbun)
@@ -56,6 +56,12 @@
     ("Sep" . 9) ("Oct" . 10) ("Nov" . 11) ("Dec" . 12)))
 
 (defvar shimbun-palmfan-expiration-days 6)
+
+(defvar shimbun-palmfan-x-face-alist
+  '(("default" . "X-Face: \"<kvsju9lZL34FJ5jQUOZ|uEZf2(W2aw>dU62umIQL4j!$\
+eGluPC0(*l4^GB8v\n diqCIs\\6@p\\TN#{@;s*NMI'@\\[8Z8M*:5g}\
+`c9yC}F6e\\}DqeZo!LB>(hEF|P+U.b|#\n >$@]5@PdGIwuU4=`imfei\
+i$PdWyuHC8!1=KH'r,R=fV])N6uQS")))
 
 (luna-define-method initialize-instance :after ((shimbun shimbun-palmfan)
 						&rest init-args)

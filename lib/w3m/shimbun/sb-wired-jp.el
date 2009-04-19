@@ -1,6 +1,6 @@
 ;;; sb-wired-jp.el --- shimbun backend for Hotwired Japan -*- coding: iso-2022-7bit; -*-
 
-;; Copyright (C) 2005 TSUCHIYA Masatoshi <tsuchiya@namazu.org>
+;; Copyright (C) 2005, 2006 TSUCHIYA Masatoshi <tsuchiya@namazu.org>
 
 ;; Author: TSUCHIYA Masatoshi <tsuchiya@namazu.org>
 ;; Keywords: news
@@ -18,17 +18,14 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program; if not, you can either send email to this
-;; program's maintainer or write to: The Free Software Foundation,
-;; Inc.; 59 Temple Place, Suite 330; Boston, MA 02111-1307, USA.
+;; along with this program; see the file COPYING.  If not, write to
+;; the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+;; Boston, MA 02110-1301, USA.
 
 ;;; Code:
 
 (require 'shimbun)
 (require 'sb-rss)
-(require 'md5)
-(eval-when-compile
-  (require 'cl))
 
 (luna-define-class shimbun-wired-jp (shimbun-rss shimbun) ())
 
@@ -71,14 +68,6 @@ Face: iVBORw0KGgoAAAANSUhEUgAAADAAAAAQBAMAAACigOGCAAAABGdBTUEAALGPC/xhBQAAADB
 		     shimbun-wired-jp-group-table)))
     (or (nth 1 elem) (nth 2 elem))))
 
-(defsubst shimbun-wired-jp-build-message-id (shimbun url)
-  (concat "<" (md5 url) "%" (shimbun-current-group shimbun)
-	  "@hotwired.goo.ne.jp>"))
-
-(luna-define-method shimbun-rss-build-message-id ((shimbun shimbun-wired-jp)
-						  url date)
-  (shimbun-wired-jp-build-message-id shimbun url))
-
 (luna-define-method shimbun-headers :around ((shimbun shimbun-wired-jp)
 					     &optional range)
   (if (nth 1 (assoc (shimbun-current-group shimbun)
@@ -101,15 +90,15 @@ Face: iVBORw0KGgoAAAANSUhEUgAAADAAAAAQBAMAAACigOGCAAAABGdBTUEAALGPC/xhBQAAADB
 	       (buffer-substring (point)
 				 (if (search-forward "</a>" nil t)
 				     (match-beginning 0)
-				   (line-end-position)))
+				   (point-at-eol)))
 	       (format "%s (%s)"
 		       (shimbun-server-name shimbun)
 		       (shimbun-current-group shimbun))
 	       ""
-	       (shimbun-wired-jp-build-message-id shimbun url)
+	       (shimbun-rss-build-message-id shimbun url)
 	       "" 0 0 url)
 	      headers)))
-    (nreverse headers)))
+    headers))
 
 (luna-define-method shimbun-article-url ((shimbun shimbun-wired-jp) header)
   (let ((url (shimbun-article-base-url shimbun header)))

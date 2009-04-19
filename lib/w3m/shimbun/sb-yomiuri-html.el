@@ -1,6 +1,6 @@
 ;;; sb-yomiuri-html.el --- shimbun backend for yomiuri online (HTML version) -*- coding: iso-2022-7bit; -*-
 
-;; Copyright (C) 2001, 2002, 2003 Yuuichi Teranishi <teranisi@gohome.org>
+;; Copyright (C) 2001, 2002, 2003, 2005 Yuuichi Teranishi <teranisi@gohome.org>
 
 ;; Author: Yuuichi Teranishi <teranisi@gohome.org>,
 ;;         Katsumi Yamaoka   <yamaoka@jpl.org>
@@ -19,28 +19,25 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program; if not, you can either send email to this
-;; program's maintainer or write to: The Free Software Foundation,
-;; Inc.; 59 Temple Place, Suite 330; Boston, MA 02111-1307, USA.
+;; along with this program; see the file COPYING.  If not, write to
+;; the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+;; Boston, MA 02110-1301, USA.
 
 ;;; Commentary:
 
+;; This module is now semi-obsolete.  You can use sb-yomiuri.el to read
+;; html articles by putting the following line in your init file.
+;;
+;;(setq shimbun-yomiuri-prefer-text-plain nil)
+
 ;;; Code:
 
-(require 'shimbun)
 (require 'sb-yomiuri)
 
 (luna-define-class shimbun-yomiuri-html (shimbun-yomiuri) ())
 
-(defvar shimbun-yomiuri-html-content-start
-  "\n<!-- ▼写真テーブル▼ -->\n\\|\n<!--  honbun start  -->\n")
-
-(defvar shimbun-yomiuri-html-content-end  "\n<!--  honbun end  -->\n")
-
-(luna-define-method shimbun-make-contents ((shimbun shimbun-yomiuri-html)
-					   header)
-  (shimbun-yomiuri-prepare-article shimbun header)
-  (shimbun-make-html-contents shimbun header))
+(defconst shimbun-yomiuri-html-prefer-text-plain nil
+  "Non-nil means prefer text/plain articles rather than html articles.")
 
 (provide 'sb-yomiuri-html)
 

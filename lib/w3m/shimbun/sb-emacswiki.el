@@ -19,15 +19,12 @@
 
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs; see the file COPYING.  If not, write to the
-;; Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-;; Boston, MA 02111-1307, USA.
+;; Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+;; Boston, MA 02110-1301, USA.
 
 ;;; Commentary:
 
 ;;; Code:
-
-(eval-when-compile
-  (require 'cl))
 
 (require 'shimbun)
 (require 'sb-rss)
@@ -76,8 +73,8 @@ e2ibWOZWTFz8j~/m")))
 	(setq url (and (listp item)
 		       (eq (intern (concat rss-ns "item")) (car item))
 		       (if (string= (shimbun-current-group shimbun) "changes")
-			   (shimbun-rss-node-text rss-ns 'link (cddr item))
-			 (shimbun-rss-node-text wiki-ns 'diff (cddr item)))))
+			   (shimbun-rss-node-text rss-ns 'link item)
+			 (shimbun-rss-node-text wiki-ns 'diff item))))
 	(when url
 	  (let* ((date (or (shimbun-rss-node-text dc-ns 'date item)
 			   (shimbun-rss-node-text rss-ns 'pubDate item)))
@@ -85,8 +82,12 @@ e2ibWOZWTFz8j~/m")))
 	    (unless (shimbun-search-id shimbun id)
 	      (push (shimbun-create-header
 		     0
-		     (shimbun-rss-node-text rss-ns 'title item)
-		     (or (shimbun-rss-node-text dc-ns 'contributor item)
+		     (let ((desc (shimbun-rss-node-text rss-ns 'description
+							item)))
+		       (concat (shimbun-rss-node-text rss-ns 'title item)
+			       (if desc
+				   (concat " - " desc))))
+		     (or (shimbun-rss-node-text wiki-ns 'username item)
 			 (shimbun-from-address shimbun))
 		     (shimbun-rss-process-date shimbun date)
 		     id "" 0 0 url)

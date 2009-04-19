@@ -18,9 +18,9 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program; if not, you can either send email to this
-;; program's maintainer or write to: The Free Software Foundation,
-;; Inc.; 59 Temple Place, Suite 330; Boston, MA 02111-1307, USA.
+;; along with this program; see the file COPYING.  If not, write to
+;; the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+;; Boston, MA 02110-1301, USA.
 
 ;;; Commentary:
 
@@ -28,9 +28,6 @@
 ;; `shimbun-geocrawler-add-group'.
 
 ;;; Code:
-
-(eval-when-compile
-  (require 'cl))
 
 (require 'shimbun)
 
@@ -117,7 +114,7 @@
 			    "http://www.geocrawler.com/mail/msg_raw.php3?msg_id="
 			    (match-string 1)))
 			  (id (concat "<" (match-string 1) "@geocrawler.com>"))
-			  (eol (line-end-position)))
+			  (eol (point-at-eol)))
 		      (when (shimbun-search-id shimbun id)
 			(throw 'stop nil))
 		      (push (shimbun-make-header

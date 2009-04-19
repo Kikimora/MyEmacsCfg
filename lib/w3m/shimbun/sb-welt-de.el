@@ -1,6 +1,6 @@
 ;;; sb-welt-de.el --- shimbun backend for <http://www.welt.de>
 
-;; Copyright (C) 2004 Andreas Seltenreich <seltenreich@gmx.de>
+;; Copyright (C) 2004, 2005, 2006 Andreas Seltenreich <seltenreich@gmx.de>
 
 ;; Author: Andreas Seltenreich <seltenreich@gmx.de>
 ;; Keywords: news, shimbun
@@ -17,9 +17,9 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program; if not, you can either send email to this
-;; program's maintainer or write to: The Free Software Foundation,
-;; Inc.; 59 Temple Place, Suite 330; Boston, MA 02111-1307, USA.
+;; along with this program; see the file COPYING.  If not, write to
+;; the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+;; Boston, MA 02110-1301, USA.
 
 ;;; Commentary:
 
@@ -43,12 +43,6 @@
 (luna-define-method shimbun-groups ((shimbun shimbun-welt-de))
   shimbun-welt-de-groups)
 
-(luna-define-method shimbun-rss-build-message-id
-  ((shimbun shimbun-welt-de) url date)
-  (unless (string-match "\\?nid=\\([0-9]+\\)" url)
-    (error "Cannot find message-id"))
-  (format "<%s@www.welt.de>" (match-string 1 url)))
-
 ;; Kill Javascript
 (luna-define-method shimbun-clear-contents
   :before ((shimbun shimbun-welt-de) headers)
@@ -64,7 +58,7 @@
 
     (when javascript-image
       (goto-char (point-min))
-      (re-search-forward shimbun-welt-de-content-start)
+      (re-search-forward (shimbun-content-start shimbun))
       (insert (concat "<img src=\"" javascript-image
 		      "_onlineBild.jpg\">")))))
 

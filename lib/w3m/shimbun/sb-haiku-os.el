@@ -1,6 +1,6 @@
 ;;; sb-haiku-os.el --- shimbun backend for haiku-os.org
 
-;; Copyright (C) 2004 Yoichi NAKAYAMA <yoichi@geiin.org>
+;; Copyright (C) 2004, 2006 Yoichi NAKAYAMA <yoichi@geiin.org>
 
 ;; Author: Yoichi NAKAYAMA <yoichi@geiin.org>
 ;; Keywords: news
@@ -19,9 +19,9 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program; if not, you can either send email to this
-;; program's maintainer or write to: The Free Software Foundation,
-;; Inc.; 59 Temple Place, Suite 330; Boston, MA 02111-1307, USA.
+;; along with this program; see the file COPYING.  If not, write to
+;; the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+;; Boston, MA 02110-1301, USA.
 
 ;;; Commentary:
 
@@ -49,12 +49,6 @@
 
 (luna-define-method shimbun-rss-process-date ((shimbun shimbun-haiku-os) date)
   date)
-
-(luna-define-method shimbun-rss-build-message-id
-  ((shimbun shimbun-haiku-os) url date)
-  (unless (string-match "=\\([0-9]+\\)\\>" url)
-    (error "Cannot find message-id base"))
-  (concat "<" (match-string-no-properties 1 url) "%" (shimbun-current-group shimbun) "@haiku-os.org>"))
 
 (luna-define-method shimbun-make-contents :around ((shimbun shimbun-haiku-os)
 						   &optional header)

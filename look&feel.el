@@ -1,10 +1,10 @@
 (transient-mark-mode 1)
 (show-paren-mode t)
 (delete-selection-mode t)
-;; Hide toolbar, menu, scrollbar
+;; Hide toolbar, scrollbar
 (if (fboundp 'scroll-bar-mode) (scroll-bar-mode -1))
 (if (fboundp 'tool-bar-mode) (tool-bar-mode -1))
-(if (fboundp 'menu-bar-mode) (menu-bar-mode -1))
+(fringe-mode 'none)
 ;;default emacs frame position
 (setq initial-frame-alist
       `((left . 100) (top . 0)
@@ -143,7 +143,8 @@ new buffer."
 (load "~/.emacs.d/lib/textmate.el")
 
 (add-to-list 'load-path "~/.emacs.d/lib/w3m")
-(require 'w3m-load)
+(setq w3m-command "/opt/local/bin/w3m")
+(require 'w3m)
 
 (require 'idutils)
 

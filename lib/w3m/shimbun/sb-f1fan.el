@@ -19,11 +19,14 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program; if not, you can either send email to this
-;; program's maintainer or write to: The Free Software Foundation,
-;; Inc.; 59 Temple Place, Suite 330; Boston, MA 02111-1307, USA.
+;; along with this program; see the file COPYING.  If not, write to
+;; the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+;; Boston, MA 02110-1301, USA.
 
 ;;; Commentary:
+
+;; This back end generates text/plain articles unless failing to
+;; extract contents.
 
 ;; Original code was nnshimbun.el written by
 ;; TSUCHIYA Masatoshi <tsuchiya@namazu.org>.
@@ -31,9 +34,8 @@
 ;;; Code:
 
 (require 'shimbun)
-(require 'sb-text)
 
-(luna-define-class shimbun-f1fan (shimbun shimbun-text) ())
+(luna-define-class shimbun-f1fan (shimbun) ())
 
 (defvar shimbun-f1fan-url "http://www.ksky.ne.jp/~tahara/f1/")
 (defvar shimbun-f1fan-server-name "F1ファン")

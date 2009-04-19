@@ -1,8 +1,8 @@
 ;;; sb-tigris.el --- shimbun backend for tigris.org ML
 
-;; Copyright (C) 2005 Tsuyoshi CHO <mfalcon_sky@emailuser.net>
+;; Copyright (C) 2005 Tsuyoshi CHO <tsuyoshi_cho@ybb.ne.jp>
 
-;; Author: Tsuyoshi CHO <mfalcon_sky@emailuser.net>
+;; Author: Tsuyoshi CHO <tsuyoshi_cho@ybb.ne.jp>
 ;; Keywords: news
 
 ;; This file is a part of shimbun.
@@ -18,9 +18,9 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program; if not, you can either send email to this
-;; program's maintainer or write to: The Free Software Foundation,
-;; Inc.; 59 Temple Place, Suite 330; Boston, MA 02111-1307, USA.
+;; along with this program; see the file COPYING.  If not, write to
+;; the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+;; Boston, MA 02110-1301, USA.
 
 ;;; Code:
 
@@ -141,7 +141,7 @@
 		     (count 0)
 		     id)
 		(when (string-match ".*msgNo=\\([0-9]+\\).*" url)
-		  (setq count (string-to-int (match-string 1 url))))
+		  (setq count (string-to-number (match-string 1 url))))
 		(setq id (format "<%d%%%s.%s.%s>"
 				 count
 				 (shimbun-tigris-get-ml-name shimbun)
@@ -151,9 +151,9 @@
 		(if (and (stringp date)
 			 (string-match "\\([0-9]*\\)-\\([0-9]*\\)-\\([0-9]*\\)" date))
 		    (setq date (shimbun-make-date-string
-				(string-to-int (match-string 1 date))
-				(string-to-int (match-string 2 date))
-				(string-to-int (match-string 3 date))))
+				(string-to-number (match-string 1 date))
+				(string-to-number (match-string 2 date))
+				(string-to-number (match-string 3 date))))
 		  (setq date nil))
 		;; change to raw page
 		(setq url (shimbun-expand-url
@@ -174,12 +174,12 @@
 	(beg nil)
 	(end nil))
     (when (search-forward "<PRE>")
-      (next-line 1)
+      (forward-line 1)
       (beginning-of-line)
       (setq beg (point))
       (delete-region (point-min) beg))
     (when (search-forward "</PRE>")
-      (previous-line 1)
+      (forward-line -1)
       (end-of-line)
       (setq end (point))
       (delete-region end (point-max)))

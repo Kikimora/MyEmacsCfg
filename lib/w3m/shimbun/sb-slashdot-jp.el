@@ -1,6 +1,7 @@
 ;;; sb-slashdot-jp.el --- shimbun backend for slashdot.jp -*- coding: iso-2022-7bit; -*-
 
-;; Copyright (C) 2003, 2004, 2005 NAKAJIMA Mikio <minakaji@namazu.org>
+;; Copyright (C) 2003, 2004, 2005, 2006, 2007
+;; NAKAJIMA Mikio <minakaji@namazu.org>
 
 ;; Author: NAKAJIMA Mikio <minakaji@namazu.org>
 ;; Keywords: news
@@ -19,9 +20,9 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program; if not, you can either send email to this
-;; program's maintainer or write to: The Free Software Foundation,
-;; Inc.; 59 Temple Place, Suite 330; Boston, MA 02111-1307, USA.
+;; along with this program; see the file COPYING.  If not, write to
+;; the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+;; Boston, MA 02110-1301, USA.
 
 ;;; Commentary:
 
@@ -43,9 +44,6 @@
 ;; based on RSS at January 18th, 2004.
 
 ;;; Code:
-
-(eval-when-compile
-  (require 'cl))
 
 (require 'shimbun)
 (require 'sb-rss)
@@ -74,20 +72,22 @@
 			(const :tag "Newest first (Ignore threads)" 5)))))
 
 (defcustom shimbun-slashdot-jp-group-alist
-  '(("story"	   . "http://slashdot.jp/slashdot.rdf")
-    ("askslashdot" . "http://slashdot.jp/askslashdot.rdf")
-    ("bookreview"  . "http://slashdot.jp/books.rdf")
-    ("bsd"	   . "http://slashdot.jp/bsd.rdf")
-    ("developers"  . "http://slashdot.jp/developers.rdf")
-    ("interview"   . "http://slashdot.jp/interview.rdf")
-    ("linuxkernel" . "http://slashdot.jp/linuxkernel.rdf")
-    ("mac"	   . "http://slashdot.jp/mac.rdf")
-    ("mobile"	   . "http://slashdot.jp/mobile.rdf")
-    ("science"	   . "http://slashdot.jp/science.rdf")
-    ("security"	   . "http://slashdot.jp/security.rdf")
-    ("slash"	   . "http://slashdot.jp/slash.rdf")
+  '(("story"	   . "http://slashdot.jp/index.rss")
+    ("askslashdot" . "http://slashdot.jp/askslashdot.rss")
+    ("bookreview"  . "http://slashdot.jp/books.rss")
+    ("bsd"	   . "http://slashdot.jp/bsd.rss")
+    ("developers"  . "http://slashdot.jp/developers.rss")
+    ("interview"   . "http://slashdot.jp/interview.rss")
+    ("linux"       . "http://slashdot.jp/linux.rss")
+    ("mac"	   . "http://slashdot.jp/mac.rss")
+    ("mobile"	   . "http://slashdot.jp/mobile.rss")
+    ("science"	   . "http://slashdot.jp/science.rss")
+    ("security"	   . "http://slashdot.jp/security.rss")
+    ("slash"	   . "http://slashdot.jp/slash.rss")
+    ("it"          . "http://slashdot.jp/it.rss")
+    ("hardware"    . "http://slashdot.jp/hardware.rss")
     ("diary.oliver" .
-     "http://slashdot.jp/journal.pl?op=display&uid=4&content_type=rss"))
+     "http://slashdot.jp/~Oliver/journal/rss"))
   "*Alist of slashdot groups and their RSS feeds."
   :group 'shimbun
   :type '(repeat
@@ -98,11 +98,15 @@
 (luna-define-class shimbun-slashdot-jp (shimbun-rss) ())
 
 (defvar shimbun-slashdot-jp-from-address "slashmaster@slashdot.jp")
-(defvar shimbun-slashdot-jp-coding-system 'euc-japan)
+;;(defvar shimbun-slashdot-jp-coding-system 'euc-japan)
 (defvar shimbun-slashdot-jp-content-start
-  "\n<!-- start template: ID [0-9]+, \\(dispStory;.*\\|.*page;journal;default\\) -->\n")
+  "<!-- start template: ID [0-9]+, \
+\\(dispStory;[^;]+\\|\\(bluebox\\|generic\\|greypage\\|liquid\\|slashdotjp\
+\\|yellowpage\\);journal\\);default -->\n")
 (defvar shimbun-slashdot-jp-content-end
-  "\n<!-- end template: ID [0-9]+, \\(dispStory;.*\\|.*page;journal;default\\) -->\n")
+  "<!-- end template: ID [0-9]+, \
+\\(dispStory;[^;]+\\|\\(bluebox\\|generic\\|greypage\\|liquid\\|slashdotjp\
+\\|yellowpage\\);journal\\);default -->\n")
 
 (luna-define-method shimbun-groups ((shimbun shimbun-slashdot-jp))
   (mapcar 'car shimbun-slashdot-jp-group-alist))
@@ -115,12 +119,18 @@
   ((shimbun shimbun-slashdot-jp) url date)
   (cond
    ((string-match
-     "\\`http://slashdot\\.jp/article\\.pl\\?sid=\\([/0-9]+\\)&"
+     "\\`http://slashdot\\.jp/\\([a-zA-Z0-9]+\\)?/?article\\.pl\\?sid=\\([/0-9]+\\)\\(&\\|\\'\\)"
      url)
-    (concat "<" (match-string-no-properties 1 url) "@slashdot.jp>"))
-   ((string-match
-     "\\`http://slashdot\\.jp/journal\\.pl\\?op=display&uid=\\([0-9]+\\)&id=\\([0-9]+\\)"
-     url)
+    (if (match-string-no-properties 1 url)
+	(concat "<" (match-string-no-properties 1 url)
+		"%" (match-string-no-properties 2 url) "@slashdot.jp>")
+      (concat "<" (match-string-no-properties 2 url) "@slashdot.jp>")))
+   ((or (string-match
+	 "\\`http://slashdot\\.jp/journal\\.pl\\?op=display&uid=\\([0-9]+\\)&id=\\([0-9]+\\)"
+	 url)
+	(string-match
+	 "\\`http://slashdot\\.jp/~\\([^/]+\\)/journal/\\([0-9]+\\)\\(\\?from=rss\\)?"
+	 url))
     (concat "<" (match-string-no-properties 2 url)
 	    "%" (match-string-no-properties 1 url) "@slashdot.jp>"))
    (t (error "Cannot find message-id base"))))
@@ -129,13 +139,29 @@
   ((shimbun shimbun-slashdot-jp) &optional range)
   (let ((headers (luna-call-next-method)))
     (dolist (head headers)
-      (shimbun-header-set-xref head
-			       (concat (shimbun-header-xref head)
-				       "&mode=nocomment")))
+      (let ((xref (shimbun-header-xref head)))
+	(if (not (string-match "journal" xref))
+	    ;; article
+	    (shimbun-header-set-xref head
+				     (concat xref "&mode=nocomment"))
+	  (if (string-match
+	       "\\`http://slashdot\\.jp/~\\([^/]+\\)/journal/\\([0-9]+\\)\\(\\?from=rss\\)?"
+	       xref)
+	      (shimbun-header-set-xref head
+				       (concat
+					"http://slashdot.jp/~"
+					(match-string 1 xref)
+					"/journal/"
+					(match-string 2 xref)
+					"?theme=generic&mode=nocomment"))
+	    (shimbun-header-set-xref head
+				     (concat xref
+					     "&theme=generic&mode=nocomment"))))))
+
     headers))
 
 (defun shimbun-slashdot-jp-comment-url (url)
-  (when (string-match "\\`http://slashdot\\.jp/article\\.pl\\?" url)
+  (when (string-match "\\`http://slashdot\\.jp/\\([a-zA-Z0-9]+\\)?/?article\\.pl" url)
     (mapconcat 'identity
 	       (cons (if (string-match "&mode=nocomment\\'" url)
 			 (substring url 0 (match-beginning 0))
@@ -145,10 +171,28 @@
 			     shimbun-slashdot-jp-comment-arguments))
 	       "&")))
 
+(luna-define-method shimbun-make-contents :before
+  ((shimbun shimbun-slashdot-jp) header)
+  (goto-char (point-min))
+  (if (string-match
+       "\\`http://slashdot\\.jp/\\([a-zA-Z0-9]+\\)?/?article\\.pl"
+       (shimbun-header-xref header))
+      ;; article
+      (when (re-search-forward "<table[^>]*class=\"titlebar\"[^>]*>[ \t\n]*\
+<tr[^>]*>[ \t\n]*<td[^>]*>[ \t\n]*<font[^>]*>\\([^<]+\\)</font>" nil t)
+	(shimbun-header-set-subject header (match-string-no-properties 1)))
+    ;; journal
+    (when (re-search-forward
+	   "<a +href=\"?/?[^/]*/journal/[0-9]+\"?>\\([^<]+\\)</a>" nil t)
+      (shimbun-header-set-subject header (match-string-no-properties 1))))
+  (goto-char (point-min)))
+
 (luna-define-method shimbun-clear-contents :around
   ((shimbun shimbun-slashdot-jp) header)
   (when (luna-call-next-method)
     (shimbun-remove-tags "<!-- begin ad code -->" "<!-- end ad code -->")
+    (shimbun-remove-tags "<script" "</script>")
+    (shimbun-remove-tags "<noscript" "</noscript>")
     (let ((url (shimbun-slashdot-jp-comment-url (shimbun-header-xref header))))
       (when url
 	(goto-char (point-max))

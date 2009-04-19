@@ -1,8 +1,8 @@
 ;;; sb-excite.el --- shimbun backend for excite -*- coding: iso-2022-7bit; -*-
 
-;; Copyright (C) 2004, 2005 Tsuyoshi CHO <mfalcon21@hotmail.com>
+;; Copyright (C) 2004, 2005, 2006 Tsuyoshi CHO <tsuyoshi_cho@ybb.ne.jp>
 
-;; Author: Tsuyoshi CHO <mfalcon21@hotmail.com>
+;; Author: Tsuyoshi CHO <tsuyoshi_cho@ybb.ne.jp>
 ;; Keywords: news
 ;; Created: Dec 24, 2004
 
@@ -19,16 +19,13 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program; if not, you can either send email to this
-;; program's maintainer or write to: The Free Software Foundation,
-;; Inc.; 59 Temple Place, Suite 330; Boston, MA 02111-1307, USA.
+;; along with this program; see the file COPYING.  If not, write to
+;; the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+;; Boston, MA 02110-1301, USA.
 
 ;;; Commentary:
 
 ;;; Code:
-
-(eval-when-compile
-  (require 'cl))
 
 (require 'shimbun)
 (require 'sb-rss)
@@ -49,9 +46,9 @@
 (defvar shimbun-excite-from-address (concat "nobody@"
 					    shimbun-excite-top-level-domain))
 (defvar shimbun-excite-content-start
-  "\\[ +[0-9]*年[0-9]*月[0-9]*日 *[0-9]*時[0-9]*分 +\\]")
+  "<font[^>]*>\\[ *[0-9]*年[0-9]*月[0-9]*日 *[0-9]*時[0-9]*分 *\\]</font>")
 (defvar shimbun-excite-content-end
-  "<a href=/News/>ニューストップ</a>")
+  "<center")
 
 ;(defvar shimbun-excite-expiration-days 14)
 
@@ -77,17 +74,14 @@ Face: iVBORw0KGgoAAAANSUhEUgAAAD4AAAAZCAMAAABetm34AAAAe1BMVEUAAACaHA4WCganBSTMA
 	  (cdr  (assoc  (shimbun-current-group-internal shimbun)
 			shimbun-excite-group-alist))))
 
-(luna-define-method shimbun-rss-build-message-id ((shimbun shimbun-excite)
-						  url date)
-		    (unless (string-match
-			     (concat (regexp-quote shimbun-excite-url)
-				     "\\([^/]\\)*/\\([0-9]+\\)\.html?")
-			     url)
-		      (error "Cannot find message-id base"))
-		    (concat "<"
-			    (match-string-no-properties 1 url)
-			    (match-string-no-properties 2 url)
-			    "@" shimbun-excite-top-level-domain ">"))
+(luna-define-method shimbun-rss-build-message-id :around
+  ((shimbun shimbun-excite) url date)
+  (if (string-match
+       (concat (regexp-quote shimbun-excite-url)
+	       "\\([^/]\\)*/\\([0-9]+\\)\.html?")
+       url)
+      (luna-call-next-method)
+    nil))
 
 (luna-define-method shimbun-get-headers :around ((shimbun shimbun-excite)
 						 &optional range)

@@ -1,6 +1,6 @@
 ;;; sb-the-register.el --- The Register shimbun backend
 
-;; Copyright (C) 2004, 2005 David Hansen
+;; Copyright (C) 2004, 2005, 2006, 2007, 2008 David Hansen
 
 ;; Author: David Hansen <david.hansen@physik.fu-berlin.de>
 ;; Keywords: news
@@ -19,8 +19,8 @@
 
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs; see the file COPYING.  If not, write to the
-;; Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-;; Boston, MA 02111-1307, USA.
+;; Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+;; Boston, MA 02110-1301, USA.
 
 ;;; Commentary:
 
@@ -34,7 +34,12 @@
 (defvar shimbun-the-register-url "http://www.theregister.co.uk/")
 (defvar shimbun-the-register-from-address  "invalid@theregister.co.uk")
 (defvar shimbun-the-register-content-start "<h2>")
-(defvar shimbun-the-register-content-end "<p class=\"Furniture\">")
+(defvar shimbun-the-register-content-end
+  "<p class=\"Furniture\">\\|<p id=\"Copyright\">")
+(defvar shimbun-the-register-x-face-alist
+  '(("default" . "X-Face: 'r-3ZQiX|_[TrM[|LF34{X#MX`MHFuL$_2w4Cs\"ET_jx9/JsL)k\
+xvY~i(,cv8ho2=\\L!Tz# @=+.N^%}G<@JRS<ZeD90JN/,oDx.o:\\-kBeyKN%DzZ)s|Ck69P6WY6^\
+IPf~GT+xfvp:1-BRTK7'f&\"\"mr'CflD?Q2R%IkV>")))
 
 (defvar shimbun-the-register-path-alist
   '(("news" . "headlines.rss")
@@ -60,16 +65,8 @@
   ((shimbun shimbun-the-register) &optional range)
   (mapcar
    (lambda (header)
-     ;; we will get redirected from http://go.theregister.com/feed/... to
-     ;; http://www.theregister.co.uk/...
-     ;; if we don't set the URL right shimbun can't follow the <img src=
-     (let ((url (shimbun-header-xref header)))
-       (setq url (w3m-replace-in-string
-		  url
-		  "http://go\\.theregister\\.com/feed/"
-		  "http://www.theregister.co.uk/"))
-       (shimbun-header-set-xref
-	header (concat url "print.html")))
+     (shimbun-header-set-xref
+      header (concat (shimbun-header-xref header) "print.html"))
      header)
    (luna-call-next-method)))
 
@@ -77,22 +74,15 @@
   :before ((shimbun shimbun-the-register) header)
   (save-excursion
     ;; remove annoying stuff
-    (let ((junk '(("(<span class=\"URL\">" . "</span>)")
-		  ("<div class=\"Ad\">" . "</div>"))))
-      (while junk
-	(goto-char (point-min))
-	(let ((beg-str (caar junk)) (end-str (cdar junk)) beg end)
-	  (setq junk (cdr junk))
-	  (while (search-forward beg-str nil t)
-	    (setq beg (match-beginning 0))
-	    (when (setq end (search-forward end-str nil t))
-	      (delete-region beg end))))))))
-
-(luna-define-method shimbun-rss-build-message-id
-  ((shimbun shimbun-the-register) url date)
-  (unless (string-match "http://[^/]+/\\(.+\\)\\(/*print\\.html\\)?" url)
-    (error "Cannot find message-id base"))
-  (concat "<" (match-string 1 url) "@the-register.co.uk>"))
+    (dolist (junk '(("(?<span class=\"URL\">" . "</span>)?")
+                    ("<div \\(class\\|id\\)=\"[^\"]*Ad\"" . "</div>")
+                    ("<a href=\"http://ad\\." . "</a>")))
+      (goto-char (point-min))
+      (message "%s" (car junk))
+      (while (re-search-forward (car junk) nil t)
+        (let ((beg (match-beginning 0)))
+          (when (re-search-forward (cdr junk) nil t)
+            (delete-region beg (point))))))))
 
 (provide 'sb-the-register)
 

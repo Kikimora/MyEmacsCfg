@@ -1,6 +1,6 @@
 ;;; sb-cnet.el --- shimbun backend for CNET
 
-;; Copyright (C) 2004 TSUCHIYA Masatoshi <tsuchiya@namazu.org>
+;; Copyright (C) 2004, 2006 TSUCHIYA Masatoshi <tsuchiya@namazu.org>
 
 ;; Author: TSUCHIYA Masatoshi <tsuchiya@namazu.org>,
 ;;         Yuuichi Teranishi  <teranisi@gohome.org>,
@@ -20,9 +20,9 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program; if not, you can either send email to this
-;; program's maintainer or write to: The Free Software Foundation,
-;; Inc.; 59 Temple Place, Suite 330; Boston, MA 02111-1307, USA.
+;; along with this program; see the file COPYING.  If not, write to
+;; the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+;; Boston, MA 02110-1301, USA.
 
 ;;; Commentary:
 
@@ -80,13 +80,6 @@ _=ro*?]4:|n>]ZiLZ2LEo^2nr('C<+`lO~/!R[lH'N'4X&%\\I}8T!wt")))
 				      (if (>= zone 0) "+" "-")
 				      (/ zone 60)
 				      (% zone 60)))))
-
-(luna-define-method shimbun-rss-build-message-id ((shimbun shimbun-cnet)
-						  url date)
-  (if (string-match "\\`http://news\\.com\\.com/\\([-_0-9]+\\)\\.html" url)
-      (concat "<" (match-string 1 url) "%"
-	      (shimbun-current-group shimbun) "@news.com.com>")
-    (error "Cannot find message-id base")))
 
 (defun shimbun-cnet-extract-body ()
   "Extract a body of an article.

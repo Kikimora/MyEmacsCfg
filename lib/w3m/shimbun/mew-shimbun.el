@@ -1,7 +1,7 @@
 ;; -*- mode: emacs-lisp -*-
 ;; mew-shimbun.el --- View shimbun contents with Mew
 
-;; Copyright (C) 2001, 2002, 2003, 2004, 2005
+;; Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006
 ;; TSUCHIYA Masatoshi <tsuchiya@namazu.org>
 
 ;; Author: TSUCHIYA Masatoshi <tsuchiya@namazu.org>
@@ -21,9 +21,9 @@
 ;; General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program; if not, you can either send email to this
-;; program's maintainer or write to: The Free Software Foundation,
-;; Inc.; 59 Temple Place, Suite 330; Boston, MA 02111-1307, USA.
+;; along with this program; see the file COPYING.  If not, write to
+;; the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+;; Boston, MA 02110-1301, USA.
 
 ;;; Commentary:
 ;; This package is `Shimbun' interface for Mew version 2.1 or later.
@@ -296,6 +296,18 @@ show below example,
     (unless (mew-sinfo-get-summary-form)
       (mew-sinfo-set-summary-form (mew-get-summary-form fld)))))
 
+(static-if (fboundp 'mew-expand-file)
+    ;; Mew 5
+    (defalias 'mew-shimbun-folder-file 'mew-expand-file)
+  (defun mew-shimbun-folder-file (fld file)
+    (expand-file-name file (mew-expand-folder fld))))
+
+(static-if (fboundp 'mew-expand-msg)
+    ;; Mew 5
+    (defalias 'mew-shimbun-expand-msg 'mew-expand-msg)
+  (defun mew-shimbun-expand-msg (fld msg)
+    (expand-file-name msg (mew-expand-folder fld))))
+
 (if (featurep 'xemacs)
     nil
   (eval-and-compile
@@ -356,7 +368,7 @@ If called with '\\[universal-argument]', goto folder to have a few new messages.
 		    (when (re-search-forward (or mew-shimbun-unseen-regex
 						 (mew-shimbun-unseen-regex)) nil t)
 		      (setq sbflds (cons fld sbflds))))
-		(setq cfile (mew-expand-folder fld mew-summary-cache-file))
+		(setq cfile (mew-shimbun-folder-file fld mew-summary-cache-file))
 		(when (file-readable-p cfile)
 		  (with-temp-buffer
 		    (mew-frwlet
@@ -366,10 +378,10 @@ If called with '\\[universal-argument]', goto folder to have a few new messages.
 		     (when (re-search-forward (or mew-shimbun-unseen-regex
 						  (mew-shimbun-unseen-regex)) nil t)
 		       (setq sbflds (cons fld sbflds))))))))))))
-    (mapcar (lambda (x)
-	      (unless (member x removes)
-		(setq alst (cons (list x) alst))))
-	    sbflds)
+    (mapc (lambda (x)
+	    (unless (member x removes)
+	      (setq alst (cons (list x) alst))))
+	  sbflds)
     (let ((completion-ignore-case mew-complete-folder-ignore-case))
       (setq fld (completing-read
 		 (if args
@@ -390,7 +402,7 @@ If called with '\\[universal-argument]', goto folder to have a few new messages.
 	  (mew-summary-ls newfld newfld))))))
 
 ;;;###autoload
-(defun mew-shimbun-retrieve ()
+(defun mew-shimbun-retrieve (&optional newfld)
   "Retrieve articles via SHIMBUN on this folder."
   (interactive)
   (when (mew-summary-exclusive-p)
@@ -414,7 +426,7 @@ If called with '\\[universal-argument]', goto folder to have a few new messages.
 	       (mew-shimbun-element-body sgr group server
 		 (setq count
 		       (+ (mew-shimbun-retrieve-article
-			   mua server group range fld)
+			   mua server group range fld newfld)
 			  count)))))
 	   (run-hooks 'mew-shimbun-retrieve-hook)
 	   (message "Getting %s %s in '%s' done"
@@ -431,7 +443,7 @@ If called with '\\[universal-argument]', goto folder to have a few new messages.
   (mew-summary-only
    (let ((mua (luna-make-entity 'shimbun-mew-mua))
 	 (cfld (mew-summary-folder-name 'ext))
-	 fld dir server group range)
+	 fld dir server group range newfld)
      (run-hooks 'mew-shimbun-before-retrieve-hook)
      (mew-window-configure 'summary)
      (mew-current-set nil nil nil)
@@ -442,17 +454,18 @@ If called with '\\[universal-argument]', goto folder to have a few new messages.
 			   (car fldgrp)))
 	 (setq dir (mew-expand-folder fld))
 	 (unless (file-directory-p dir)
-	   (mew-make-directory dir))
+	   (mew-make-directory dir)
+	   (setq newfld t))
 	 (mew-shimbun-visit-folder fld)
 	 (sit-for 0.5)
 	 (mew-rendezvous mew-summary-buffer-process)
-	 (mew-shimbun-retrieve)
+	 (mew-shimbun-retrieve newfld)
 	 (unless (eq (get-buffer cfld) (current-buffer))
 	   (mew-kill-buffer (current-buffer)))))
      (mew-shimbun-visit-folder cfld)
      (message "Getting done"))))
 
-(defun mew-shimbun-retrieve-article (mua server group range fld)
+(defun mew-shimbun-retrieve-article (mua server group range fld &optional newfld)
   "Retrieve articles via SHIMBUN."
   (luna-define-method shimbun-mua-search-id ((mua shimbun-mew-mua) id)
     (let ((shimbun (shimbun-mua-shimbun mua)))
@@ -468,7 +481,7 @@ If called with '\\[universal-argument]', goto folder to have a few new messages.
 		  mew-use-biff))
 	(count 0)
 	(dispcount 0)
-	newfld msg file)
+	msg file)
     (if biff (mew-biff-clean-up))
     (shimbun-open-group shimbun group)
     (unless (file-exists-p (mew-expand-folder fld))
@@ -501,7 +514,7 @@ If called with '\\[universal-argument]', goto folder to have a few new messages.
 		    (insert (format "X-Shimbun-Id: %s\n" id))
 		    (mew-shimbun-sanity-convert)
 		    (setq msg (mew-folder-new-message fld 'numonly))
-		    (setq file (mew-expand-folder fld msg))
+		    (setq file (mew-shimbun-expand-msg fld msg))
 		    (mew-frwlet
 		     mew-cs-dummy mew-cs-text-for-write
 		     (write-region (point-min) (point-max) file nil 'nomsg))
@@ -662,7 +675,7 @@ If called with '\\[universal-argument]', re-retrieve messages in the region."
 		  (setq newcount (1+ newcount))
 		  (setq msg (mew-folder-new-message fld 'numonly))
 		  (setq oldmd5 nil))
-		(setq file (mew-expand-folder fld msg))
+		(setq file (mew-shimbun-expand-msg fld msg))
 		(setq buf (get-buffer-create mew-shimbun-article-buffer-name))
 		(with-current-buffer buf
 		  (mew-erase-buffer)
@@ -790,7 +803,7 @@ If called with '\\[universal-argument]', re-retrieve messages in the region."
 		     (mew-elet
 		      (delete-region (point)
 				     (progn (forward-line) (point)))))
-		   (setq file (mew-expand-folder fld msg))
+		   (setq file (mew-shimbun-expand-msg fld msg))
 		   (when (and (file-exists-p file)
 			      (file-readable-p file)
 			      (file-writable-p file))
@@ -1010,10 +1023,10 @@ If called with '\\[universal-argument]', re-retrieve messages in the region."
 	(forward-line)
 	(mew-header-goto-next)
 	(delete-region beg (point)))
-      (mew-md5
-       (string-as-unibyte
-	(mew-buffer-substring (point-min)
-			      (min (point-max) (+ (point-min) 4096))))))))
+      (md5 (string-as-unibyte
+	    (mew-buffer-substring (point-min)
+				  (min (point-max) (+ (point-min) 4096))))
+	   nil nil 'binary))))
 
 (defvar mew-shimbun-touch-folder-p
   (static-if (boundp 'mew-touch-folder-p)

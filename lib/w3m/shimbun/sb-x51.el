@@ -1,8 +1,8 @@
 ;;; sb-x51.el --- shimbun backend for x51.org -*- coding: iso-2022-7bit; -*-
 
-;; Copyright (C) 2004, 2005 Tsuyoshi CHO <mfalcon21@hotmail.com>
+;; Copyright (C) 2004, 2005, 2006 Tsuyoshi CHO <tsuyoshi_cho@ybb.ne.jp>
 
-;; Author: Tsuyoshi CHO <mfalcon21@hotmail.com>
+;; Author: Tsuyoshi CHO <tsuyoshi_cho@ybb.ne.jp>
 ;; Keywords: news blog
 ;; Created: Feb 21, 2004
 
@@ -19,9 +19,9 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program; if not, you can either send email to this
-;; program's maintainer or write to: The Free Software Foundation,
-;; Inc.; 59 Temple Place, Suite 330; Boston, MA 02111-1307, USA.
+;; along with this program; see the file COPYING.  If not, write to
+;; the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+;; Boston, MA 02110-1301, USA.
 
 ;;; Commentary:
 
@@ -33,41 +33,40 @@
 
 (luna-define-class shimbun-x51 (shimbun-rss) ())
 
-(defvar shimbun-x51-url "http://x51.org/")
 (defvar shimbun-x51-group-alist
-  '(("top"        . "index.rdf") ;; Top-RDF
-    ("art"        . "x/art.php")
-    ("auction"    . "x/auction.php")
-    ("blow"       . "x/blow.php")
-    ("cabal"      . "x/cabal.php")
-    ("crime"      . "x/crime.php")
-    ("disaster"   . "x/disaster.php")
-    ("edge"       . "x/edge.php")
-    ("homme"      . "x/homme.php")
-    ("info"       . "x/info.php")
-    ("life"       . "x/life.php")
-    ("love"       . "x/love.php")
-    ("media"      . "x/media.php")
-    ("medical"    . "x/medical.php")
-    ("military"   . "x/military.php")
-    ("news"       . "x/news.php")
-    ("northkorea" . "x/northkorea.php")
-    ("oparts"     . "x/oparts.php")
-    ("phallic"    . "x/phallic.php")
-    ("psychic"    . "x/psychic.php")
-    ("religion"   . "x/religion.php")
-    ("science"    . "x/science.php")
-    ("story"      . "x/story.php")
-    ("ufo"        . "x/ufo.php")
-    ("uma"        . "x/uma.php")
-    ("xfiles"     . "x/xfiles.php")))
+  '(("top"        . "http://x51.org/index.rdf") ;; Top-RDF
+    ("anima"      . "http://anima.x51.org/index.rdf")
+    ("enema"      . "http://enema.x51.org/index.rdf")
+    ("art"        . "http://x51.org/x/art/")
+    ("blow"       . "http://x51.org/x/blow/")
+    ("crime"      . "http://x51.org/x/crime/")
+    ("disaster"   . "http://x51.org/x/disaster/")
+    ("edge"       . "http://x51.org/x/edge/")
+    ("ghost"      . "http://x51.org/x/ghost/")
+    ("info"       . "http://x51.org/x/info/")
+    ("life"       . "http://x51.org/x/life/")
+    ("love"       . "http://x51.org/x/love/")
+    ("media"      . "http://x51.org/x/media/")
+    ("medical"    . "http://x51.org/x/medical/")
+    ("oparts"     . "http://x51.org/x/oparts/")
+    ("phallic"    . "http://x51.org/x/phallic/")
+    ("psychic"    . "http://x51.org/x/psychic/")
+    ("religion"   . "http://x51.org/x/religion/")
+    ("science"    . "http://x51.org/x/science/")
+    ("ufo"        . "http://x51.org/x/ufo/")
+    ("uma"        . "http://x51.org/x/uma/")
+    ("xfiles"     . "http://x51.org/x/xfiles/")))
+
+(defvar shimbun-x51-obsolete-groups
+  '("auction" "cabal" "homme" "military" "news" "northkorea" "story")
+  "Obsolete group names.")
 
 (defvar shimbun-x51-server-name "x51.org")
 (defvar shimbun-x51-from-address "webmaster@x51.org")
 (defvar shimbun-x51-auther "X51")
 (defvar shimbun-x51-coding-system 'utf-8)
-(defvar shimbun-x51-content-start "<!-- Article -->")
-(defvar shimbun-x51-content-end "<!---/ Article --->")
+(defvar shimbun-x51-content-start "<!-- Article -->\\|<div class=\"blogbody\">")
+(defvar shimbun-x51-content-end "<!---/ Article --->\\|<div class=\"comments-body\">")
 
 ;; X-Face create from banner
 (defvar shimbun-x51-x-face-alist
@@ -75,42 +74,36 @@
 !dzRSN]tO68A5{`1RzK`g+0Yo$0q2RFM\n 7m?9-o[R6ou-[9X$JI1HYc>A-a[+DGgI")))
 
 (luna-define-method shimbun-groups ((shimbun shimbun-x51))
-  (mapcar 'car shimbun-x51-group-alist))
+  (append
+   shimbun-x51-obsolete-groups
+   (mapcar 'car shimbun-x51-group-alist)))
 
 (defmacro shimbun-x51-concat-url (shimbun url)
-  `(concat (shimbun-url-internal ,shimbun)
-	   (cdr (assoc (shimbun-current-group-internal ,shimbun)
+  `(concat (cdr (assoc (shimbun-current-group-internal ,shimbun)
 		       shimbun-x51-group-alist))
 	   ,url))
 
 (luna-define-method shimbun-index-url ((shimbun shimbun-x51))
   (shimbun-x51-concat-url shimbun ""))
 
-(luna-define-method shimbun-rss-build-message-id ((shimbun shimbun-x51)
-						  url date)
-  (unless (string-match
-	   "http://[^\/]+/x/\\([0-9]+\\)/\\([0-9]+\\)/\\([0-9]+\\).php"
-	   url)
-    (error "Cannot find message-id base"))
-  (format "<%s%s%s@x51.org>"
-	  (match-string-no-properties 1 url)
-	  (match-string-no-properties 2 url)
-	  (match-string-no-properties 3 url)))
-
 (luna-define-method shimbun-get-headers :around ((shimbun shimbun-x51)
 						 &optional range)
   (let* ((case-fold-search t)
 	 (url (shimbun-index-url shimbun))
 	 headers)
-    (if (string-match "top" (car (assoc (shimbun-current-group-internal
-					 shimbun)
-					shimbun-x51-group-alist)))
-	(luna-call-next-method)	;; call parent method
+    (cond
+     ((member (shimbun-current-group-internal shimbun)
+	      shimbun-x51-obsolete-groups)
+      (setq headers '()))
+     ((member (shimbun-current-group-internal shimbun)
+	      '("top" "anima" "enema"))
+      (setq headers (luna-call-next-method)))	;; call parent method
+     (t
       (let* ((pages (shimbun-header-index-pages range))
 	     (beg (point-min))
 	     (end (point-max))
 	     indexes)
-	(push (concat url "?page=1") indexes) ;; push page 1
+	(push (concat url "index.php?page=1") indexes) ;; push page 1
 	(when (if pages (< 1 pages) t)
 	  (goto-char (point-min))
 	  (when (search-forward "<div class=\"middlebar\">" nil t)
@@ -147,23 +140,16 @@
 	      (goto-char (point-min))
 	      (let (title url date id)
 		(while (re-search-forward
-			"<a +href=\"http://x51\\.org/x/\
-\\([0-9][0-9]\\)/\\([0-9][0-9]\\)/\\([0-9][0-9]\\)\\([0-9][0-9]\\)\\.php\"\
+			"<a +href=\"\\(http://x51\\.org/x/\
+\\([0-9][0-9]\\)/\\([0-9][0-9]\\)/\\([0-9][0-9]\\)\\([0-9][0-9]\\)\\.php\\)\"\
  +class=\"title[^\"]*\">\\([^<]*\\)</a>"
 			nil t)
-		  (setq url (shimbun-expand-url
-			     (concat
-			      "http://x51.org/x/"
-			      (match-string 1) "/"
-			      (match-string 2) "/"
-			      (match-string 3) (match-string 4)
-			      ".php")
-			     (shimbun-index-url shimbun)))
-		  (setq title (match-string 5))
-		  (setq date  (shimbun-make-date-string
-			       (string-to-int (match-string 1))
-			       (string-to-int (match-string 2))
-			       (string-to-int (match-string 3))))
+		  (setq url (match-string-no-properties 1)
+			title (match-string-no-properties 6)
+			date (shimbun-make-date-string
+			      (string-to-number (match-string 2))
+			      (string-to-number (match-string 3))
+			      (string-to-number (match-string 4))))
 		  (setq id (shimbun-rss-build-message-id shimbun url date))
 		  ;; check old id
 		  (when (shimbun-search-id shimbun id)
@@ -176,16 +162,16 @@
 			 date
 			 id "" 0 0 url)
 			headers))
-		(widen)))))
-	headers))))
+		(widen))))))
+      headers))))
 
 ;; normalize date
 (defun shimbun-x51-prepare-article (shimbun header)
   "Adjust a date header if there's a correct information available."
   (let* ((case-fold-search t)
-	 (start (re-search-forward shimbun-x51-content-start nil t))
+	 (start (re-search-forward (shimbun-content-start shimbun) nil t))
 	 (end (and start
-		   (re-search-forward shimbun-x51-content-end nil t)
+		   (re-search-forward (shimbun-content-end shimbun) nil t)
 		   (prog1
 		       (match-beginning 0)
 		     (goto-char start)))))
@@ -196,7 +182,7 @@
 \\([0-9]*\\)\\(&#26376;\\|月\\)\
 \\([0-9]*\\)\\(&#26085;\\|日\\)\
  ?\\([012][0-9]:[0-5][0-9]\\)"
-	   nil t)
+	   end t)
       (shimbun-header-set-date
        header
        (shimbun-make-date-string

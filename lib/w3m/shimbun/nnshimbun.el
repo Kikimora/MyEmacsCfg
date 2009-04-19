@@ -1,10 +1,10 @@
 ;;; nnshimbun.el --- interfacing with web newspapers
 
-;; Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005
+;; Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008
 ;; TSUCHIYA Masatoshi <tsuchiya@namazu.org>
 
 ;; Authors: TSUCHIYA Masatoshi <tsuchiya@namazu.org>,
-;;          Akihiro Arisawa    <ari@atesoft.advantest.co.jp>,
+;;          ARISAWA Akihiro    <ari@mbf.sphere.ne.jp>,
 ;;          Katsumi Yamaoka    <yamaoka@jpl.org>,
 ;;          Yuuichi Teranishi  <teranisi@gohome.org>
 ;; Keywords: news
@@ -22,9 +22,9 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program; if not, you can either send email to this
-;; program's maintainer or write to: The Free Software Foundation,
-;; Inc.; 59 Temple Place, Suite 330; Boston, MA 02111-1307, USA.
+;; along with this program; see the file COPYING.  If not, write to
+;; the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+;; Boston, MA 02110-1301, USA.
 
 ;;; Commentary:
 
@@ -65,13 +65,29 @@
        (signal (car err) (cdr err))))))
 
 (require 'shimbun)
+
 (eval-and-compile
   (autoload 'gnus-declare-backend "gnus-start")
+  (autoload 'gnus-ephemeral-group-p "gnus")
+  (autoload 'gnus-group-change-level "gnus-start")
+  (autoload 'gnus-group-goto-group "gnus-group")
+  (autoload 'gnus-group-group-level "gnus-group")
+  (autoload 'gnus-group-insert-group-line-info "gnus-group")
   (autoload 'gnus-group-make-group "gnus-group")
+  (autoload 'gnus-group-prefixed-name "gnus")
+  (autoload 'gnus-group-read-ephemeral-group "gnus-group")
+  (autoload 'gnus-group-remove-mark "gnus-group")
   (autoload 'gnus-group-short-name "gnus")
+  (autoload 'gnus-group-update-group-line "gnus-group")
+  (autoload 'gnus-kill-ephemeral-group "gnus")
   (autoload 'gnus-summary-refer-article "gnus-sum")
   (autoload 'message-make-date "message")
   (autoload 'parse-time-string "parse-time"))
+
+(eval-when-compile
+  (defvar gnus-level-default-subscribed)
+  (defvar gnus-level-killed)
+  (defvar gnus-level-subscribed))
 
 (defgroup nnshimbun nil
   "Reading web contents with Gnus."
@@ -101,6 +117,13 @@ since nnshimbun uses the backlog to keep the prefetched articles."
 *If non-nil, nnshimbun won't expire the articles of which the date is unknown."
   :group 'nnshimbun
   :type 'boolean)
+
+(defcustom nnshimbun-default-group-level nil
+  "Integer specifies the default nnshimbun group level or nil.
+It is applied when an nnshimbun group is newly created.  If it is nil,
+the value of `gnus-level-default-subscribed' will be used."
+  :group 'nnshimbun
+  :type '(radio (const :format "%v  " nil) (integer :value 3)))
 
 
 ;; The nnshimbun group parameter:
@@ -267,7 +290,7 @@ This simply provides a default value for all the nnshimbun groups.
 You can use the `encapsulate-images' nnshimbun group parameter for
 each nnshimbun group.")
 
-(defvoo nnshimbun-index-range nil
+(defvoo nnshimbun-index-range 2
   "*The number of indices that should be checked to detect new articles.
 `all' or nil is for all indices, `last' is for the last index, and an
 integer N is for the last N pages of indices.  This simply provides a
@@ -285,17 +308,17 @@ default value for all the nnshimbun groups.  You can use the
 (defmacro nnshimbun-current-server ()
   '(nnoo-current-server 'nnshimbun))
 
-(defmacro nnshimbun-server-directory (&optional server)
-  `(file-name-as-directory
-    (expand-file-name ,(or server '(nnshimbun-current-server))
-		      nnshimbun-directory)))
-
 (defmacro nnshimbun-current-group ()
   '(shimbun-current-group nnshimbun-shimbun))
 
-(defmacro nnshimbun-current-directory (&optional group)
-  `(nnmail-group-pathname ,(or group '(nnshimbun-current-group))
-			  (nnshimbun-server-directory)))
+(defsubst nnshimbun-group-prefixed-name (group &optional server)
+  (gnus-group-prefixed-name (or group (nnshimbun-current-group))
+			    (list 'nnshimbun
+				  (or server (nnshimbun-current-server)))))
+
+(defsubst nnshimbun-group-ephemeral-p (group)
+  (gnus-ephemeral-group-p (nnshimbun-group-prefixed-name
+			   group (shimbun-server nnshimbun-shimbun))))
 
 (defmacro nnshimbun-backlog (&rest form)
   `(let ((gnus-keep-backlog nnshimbun-keep-backlog)
@@ -315,7 +338,7 @@ default value for all the nnshimbun groups.  You can use the
 If FULL-NAME-P is non-nil, it assumes that GROUP is a full name."
   (let ((name (if full-name-p
 		  group
-		`(concat "nnshimbun+" (nnshimbun-current-server) ":" ,group))))
+		`(nnshimbun-group-prefixed-name ,group))))
     (cond ((eq 'index-range (eval symbol))
 	   `(or (plist-get (nnshimbun-find-group-parameters ,name)
 			   'index-range)
@@ -351,6 +374,20 @@ If FULL-NAME-P is non-nil, it assumes that GROUP is a full name."
       (mm-decode-coding-string group 'utf-8)
     group))
 
+(defsubst nnshimbun-nov-buffer-name (&optional group)
+  (format " *nnshimbun overview %s %s*"
+	  (nnshimbun-current-server)
+	  (or group (nnshimbun-current-group))))
+
+(defsubst nnshimbun-nov-directory (group)
+  (nnmail-group-pathname (or group (nnshimbun-current-group))
+			 (expand-file-name (nnshimbun-current-server)
+					   nnshimbun-directory)))
+
+(defsubst nnshimbun-nov-file-name (group)
+  (concat (nnshimbun-nov-directory group) nnshimbun-nov-file-name))
+
+
 ;; Interface functions:
 
 (nnoo-define-basics nnshimbun)
@@ -360,69 +397,32 @@ If FULL-NAME-P is non-nil, it assumes that GROUP is a full name."
 	    (nnshimbun-open-server server)
 	  nnshimbun-shimbun)
     (or (not group)
-	(when (condition-case err
-		  (shimbun-open-group nnshimbun-shimbun group)
-		(error
-		 (nnheader-report 'nnshimbun "%s" (error-message-string err))))
-	  (let ((file-name-coding-system nnmail-pathname-coding-system)
-		(pathname-coding-system nnmail-pathname-coding-system)
-		(dir (nnshimbun-current-directory group)))
-	    (or (file-directory-p dir)
-		(ignore-errors
-		  (make-directory dir t)
-		  (file-directory-p dir))
-		(nnheader-report 'nnshimbun
-				 (if (file-exists-p dir)
-				     "Not a directory: %s"
-				   "Couldn't create directory: %s")
-				 dir)))))))
+	(condition-case err
+	    (shimbun-open-group nnshimbun-shimbun group)
+	  (error
+	   (nnheader-report 'nnshimbun "%s" (error-message-string err)))))))
 
 (deffoo nnshimbun-open-server (server &optional defs)
   (or (nnshimbun-server-opened server)
       (let ((file-name-coding-system nnmail-pathname-coding-system)
-	    (pathname-coding-system nnmail-pathname-coding-system)
-	    (shimbun))
+	    shimbun)
 	(when (condition-case err
 		  (setq shimbun
-			(shimbun-open server
+			(shimbun-open (or (cadr (assq 'nnshimbun-address defs))
+					  server)
 				      (luna-make-entity 'shimbun-gnus-mua)))
 		(error
 		 (nnheader-report 'nnshimbun "%s" (error-message-string err))))
 	  (nnoo-change-server 'nnshimbun server
 			      (cons (list 'nnshimbun-shimbun shimbun) defs))
-	  (when (or (file-directory-p nnshimbun-directory)
-		    (ignore-errors
-		      (make-directory nnshimbun-directory)
-		      (file-directory-p nnshimbun-directory))
-		    (progn
-		      (nnshimbun-close-server)
-		      (nnheader-report 'nnshimbun
-				       (if (file-exists-p nnshimbun-directory)
-					   "Not a directory: %s"
-					 "Couldn't create directory: %s")
-				       nnshimbun-directory)))
-	    (let ((dir (nnshimbun-server-directory server)))
-	      (when (or (file-directory-p dir)
-			(ignore-errors
-			  (make-directory dir)
-			  (file-directory-p dir))
-			(progn
-			  (nnshimbun-close-server)
-			  (nnheader-report 'nnshimbun
-					   (if (file-exists-p dir)
-					       "Not a directory: %s"
-					     "Couldn't create directory: %s")
-					   dir)))
-		(nnheader-report 'nnshimbun
-				 "Opened server %s using directory %s"
-				 server dir)
-		t)))))))
+	  t))))
 
 (deffoo nnshimbun-close-server (&optional server)
   (when (nnshimbun-server-opened server)
     (when nnshimbun-shimbun
       (dolist (group (shimbun-groups nnshimbun-shimbun))
-	(nnshimbun-write-nov group t))
+	(when (buffer-live-p (nnshimbun-nov-buffer-name group))
+	  (nnshimbun-write-nov group t)))
       (shimbun-close nnshimbun-shimbun)))
   (nnshimbun-backlog (gnus-backlog-shutdown))
   (nnoo-close-server 'nnshimbun server)
@@ -490,9 +490,12 @@ If FULL-NAME-P is non-nil, it assumes that GROUP is a full name."
 (deffoo nnshimbun-request-group (group &optional server dont-check)
   (setq group (nnshimbun-decode-group-name group))
   (if (not (nnshimbun-possibly-change-group group server))
-      (nnheader-report 'nnshimbun "Invalid group (no such directory)")
+      (nnheader-report 'nnshimbun "Invalid group")
     (let (beg end lines)
       (with-current-buffer (nnshimbun-open-nov group)
+	(when (and (nnshimbun-group-ephemeral-p group)
+		   (zerop (buffer-size)))
+	  (nnshimbun-generate-nov-database group))
 	(goto-char (point-min))
 	(setq beg (ignore-errors (read (current-buffer))))
 	(goto-char (point-max))
@@ -513,8 +516,7 @@ If FULL-NAME-P is non-nil, it assumes that GROUP is a full name."
 
 (deffoo nnshimbun-close-group (group &optional server)
   (setq group (nnshimbun-decode-group-name group))
-  (nnshimbun-write-nov group)
-  t)
+  (nnshimbun-write-nov group (nnshimbun-group-ephemeral-p group)))
 
 (deffoo nnshimbun-request-list (&optional server)
   (when (nnshimbun-possibly-change-group nil server)
@@ -558,7 +560,7 @@ If FULL-NAME-P is non-nil, it assumes that GROUP is a full name."
   (unless (or gnus-nov-is-evil nnshimbun-nov-is-evil)
     (with-current-buffer nntp-server-buffer
       (erase-buffer)
-      (insert-buffer (nnshimbun-open-nov group))
+      (insert-buffer-substring (nnshimbun-open-nov group))
       (unless (and fetch-old (not (numberp fetch-old)))
 	(nnheader-nov-delete-outside-range
 	 (if fetch-old
@@ -646,12 +648,16 @@ allowed for each string."
       (goto-char (point-max))
       (forward-line -1)
       (let* ((i (or (ignore-errors (read (current-buffer))) 0))
-	     (name (concat "nnshimbun+" (nnshimbun-current-server) ":" group))
-	     (pre-fetch (nnshimbun-find-parameter name 'prefetch-articles t)))
+	     (name (unless (nnshimbun-group-ephemeral-p group)
+		     (nnshimbun-group-prefixed-name group)))
+	     (pre-fetch (when name
+			  (nnshimbun-find-parameter name 'prefetch-articles t))))
 	(dolist (header
 		 (shimbun-headers nnshimbun-shimbun
-				  (nnshimbun-find-parameter name
-							    'index-range t)))
+				  (if name
+				      (nnshimbun-find-parameter name
+								'index-range t)
+				    'last)))
 	  (let ((article
 		 (nnshimbun-search-id group (shimbun-header-id header))))
 	    (if article
@@ -673,12 +679,12 @@ allowed for each string."
 (defun nnshimbun-search-id (group id)
   (with-current-buffer (nnshimbun-open-nov group)
     (goto-char (point-min))
-    (let (found)
+    (let (found case-fold-search)
       (while (and (not found)
 		  (search-forward id nil t)) ; We find the ID.
 	;; And the id is in the fourth field.
 	(if (not (and (search-backward "\t" nil t 4)
-		      (not (search-backward "\t" (shimbun-point-at-bol) t))))
+		      (not (search-backward "\t" (point-at-bol) t))))
 	    (forward-line 1)
 	  (forward-line 0)
 	  (setq found t)))
@@ -687,7 +693,7 @@ allowed for each string."
 	(setq id (concat "X-Nnshimbun-Id: " id))
 	(while (and (not found)
 		    (search-forward id nil t))
-	  (if (not (search-backward "\t" (shimbun-point-at-bol) t 8))
+	  (if (not (search-backward "\t" (point-at-bol) t 8))
 	      (forward-line 1)
 	    (forward-line 0)
 	    (setq found t))))
@@ -697,7 +703,7 @@ allowed for each string."
 ;; This function is defined as the alternative of `nnheader-parse-nov'
 ;; in order to keep the compatibility between T-gnus and Gnus.
 (defun nnshimbun-parse-nov ()
-  (let ((eol (shimbun-point-at-eol)))
+  (let ((eol (point-at-eol)))
     (let ((number  (nnheader-nov-read-integer))
 	  (subject (nnheader-nov-field))
 	  (from    (nnheader-nov-field))
@@ -717,23 +723,12 @@ allowed for each string."
 			   (or (cdr (assq 'X-Nnshimbun-Id extra)) id)
 			   refs chars lines xref extra))))
 
-(defsubst nnshimbun-nov-buffer-name (&optional group)
-  (format " *nnshimbun overview %s %s*"
-	  (nnshimbun-current-server)
-	  (or group (nnshimbun-current-group))))
-
-(defsubst nnshimbun-nov-file-name (&optional group)
-  (nnmail-group-pathname (or group (nnshimbun-current-group))
-			 (nnshimbun-server-directory)
-			 nnshimbun-nov-file-name))
-
 (defun nnshimbun-open-nov (group)
   (let ((buffer (nnshimbun-nov-buffer-name group)))
     (unless (gnus-buffer-live-p buffer)
       (with-current-buffer (gnus-get-buffer-create buffer)
 	(erase-buffer)
 	(let ((file-name-coding-system nnmail-pathname-coding-system)
-	      (pathname-coding-system nnmail-pathname-coding-system)
 	      (nov (nnshimbun-nov-file-name group)))
 	  (when (file-exists-p nov)
 	    (nnheader-insert-file-contents nov)))
@@ -742,16 +737,22 @@ allowed for each string."
 
 (defun nnshimbun-write-nov (group &optional close)
   (let ((buffer (nnshimbun-nov-buffer-name group)))
-    (when (gnus-buffer-live-p buffer)
-      (with-current-buffer buffer
-	(let ((file-name-coding-system nnmail-pathname-coding-system)
-	      (pathname-coding-system nnmail-pathname-coding-system)
-	      (nov (nnshimbun-nov-file-name group)))
-	  (when (and (buffer-modified-p)
-		     (or (> (buffer-size) 0)
-			 (file-exists-p nov)))
-	    (nnmail-write-region 1 (point-max) nov nil 'nomesg)
-	    (set-buffer-modified-p nil))))
+    (prog1 (or (nnshimbun-group-ephemeral-p group)
+	       (not (gnus-buffer-live-p buffer))
+	       (let ((file-name-coding-system nnmail-pathname-coding-system))
+		 (when (let ((dir (nnshimbun-nov-directory group)))
+			 (or (file-directory-p dir)
+			     (ignore-errors
+			      (make-directory dir t)
+			      (file-directory-p dir))))
+		   (let ((nov (nnshimbun-nov-file-name group)))
+		     (with-current-buffer buffer
+		       (when (and (buffer-modified-p)
+				  (or (> (buffer-size) 0)
+				      (file-exists-p nov)))
+			 (nnmail-write-region 1 (point-max) nov nil 'nomesg)
+			 (set-buffer-modified-p nil)
+			 t))))))
       (when close
 	(kill-buffer buffer)))))
 
@@ -764,7 +765,7 @@ article to be expired.  The optional fourth argument FORCE is ignored."
   (setq group (nnshimbun-decode-group-name group))
   (when (nnshimbun-possibly-change-group group server)
     (let* ((expirable (copy-sequence articles))
-	   (name (concat "nnshimbun+" (nnshimbun-current-server) ":" group))
+	   (name (nnshimbun-group-prefixed-name group))
 	   ;; If the group's `expiry-wait' parameter is non-nil, the value
 	   ;; of `nnmail-expiry-wait' will be bound to that value, and the
 	   ;; value of `nnmail-expiry-wait-function' will be bound to nil.
@@ -784,7 +785,7 @@ article to be expired.  The optional fourth argument FORCE is ignored."
 	(while expirable
 	  (setq article (pop expirable))
 	  (when (and (nnheader-find-nov-line article)
-		     (setq end (shimbun-point-at-eol))
+		     (setq end (point-at-eol))
 		     (not (= (point-max) (1+ end))))
 	    (setq time (and (search-forward "\t" end t)
 			    (search-forward "\t" end t)
@@ -813,7 +814,7 @@ article to be expired.  The optional fourth argument FORCE is ignored."
 Other files in the directory are also deleted."
   (setq group (nnshimbun-decode-group-name group))
   (when (nnshimbun-possibly-change-group group server)
-    (let ((dir (nnmail-group-pathname group (nnshimbun-server-directory)))
+    (let ((dir (nnshimbun-nov-directory group))
 	  (nov (nnshimbun-nov-buffer-name group))
 	  files file subdir)
       (when (file-directory-p dir)
@@ -829,8 +830,9 @@ Other files in the directory are also deleted."
 	(unless subdir
 	  (delete-directory dir)))
       (setq dir (expand-file-name ".." dir))
-      (unless (directory-files
-	       dir t "^\\([^.]\\|\\.\\([^.]\\|\\..\\)\\).*")
+      (when (and (file-directory-p dir)
+		 (not (directory-files
+		       dir t "^\\([^.]\\|\\.\\([^.]\\|\\..\\)\\).*")))
 	(delete-directory dir))
       (when (gnus-buffer-live-p nov)
 	(kill-buffer nov)))
@@ -861,7 +863,7 @@ Other files in the directory are also deleted."
 	    (while (and (not found)
 			(search-forward url nil t)
 			(looking-at "[?\t]"))
-	      (if (not (search-backward "\t" (shimbun-point-at-bol) t 7))
+	      (if (not (search-backward "\t" (point-at-bol) t 7))
 		  (forward-line 1)
 		(forward-line 0)
 		(setq found t))))
@@ -874,12 +876,13 @@ Other files in the directory are also deleted."
   (interactive "sURL: ")
   (let ((method (gnus-find-method-for-group gnus-newsgroup-name))
 	(header))
-    (and (eq 'nnshimbun (car method))
-	 (nnshimbun-possibly-change-group nil (nth 1 method))
-	 (setq header (nnshimbun-search-xref
-		       (gnus-group-short-name gnus-newsgroup-name) url))
-	 (with-current-buffer gnus-summary-buffer
-	   (gnus-summary-refer-article (shimbun-header-id header))))))
+    (or (and (eq 'nnshimbun (car method))
+	     (nnshimbun-possibly-change-group nil (nth 1 method))
+	     (setq header (nnshimbun-search-xref
+			   (gnus-group-short-name gnus-newsgroup-name) url))
+	     (with-current-buffer gnus-summary-buffer
+	       (gnus-summary-refer-article (shimbun-header-id header))))
+	'w3m-goto-url)))
 
 (defun nnshimbun-setup-article-mode ()
   (set (make-local-variable 'w3m-goto-article-function)
@@ -891,9 +894,11 @@ Other files in the directory are also deleted."
 (defvar nnshimbun-server-history nil)
 
 ;;;###autoload
-(defun gnus-group-make-shimbun-group (server group)
+(defun gnus-group-make-shimbun-group (server group &optional ephemeral)
   "Create a new nnshimbun group.
-The user will be prompted for a SERVER name and a GROUP name."
+The user will be prompted for a SERVER name and a GROUP name.  When
+this command is called with a prefix argument, it makes an ephemeral
+shimbun group."
   (interactive
    (let ((minibuffer-setup-hook
 	  (append minibuffer-setup-hook '(beginning-of-line)))
@@ -920,19 +925,102 @@ The user will be prompted for a SERVER name and a GROUP name."
 	   (unless (shimbun-group-p shimbun group)
 	     (setq group nil)))
        (setq server nil))
-     (list server group)))
+     (list server group current-prefix-arg)))
   (if (and server group)
-      (if (gnus-gethash (format "nnshimbun+%s:%s" server group)
-			gnus-newsrc-hashtb)
-	  (error "Group nnshimbun+%s:%s already exists" server group)
-	(let (nnshimbun-pre-fetch-article)
-	  (gnus-group-make-group
-	   (if (mm-coding-system-p 'utf-8)
-	       (mm-encode-coding-string group 'utf-8)
-	     group)
-	   (list 'nnshimbun server))))
+      (let (nname)
+	(setq server (list 'nnshimbun server)
+	      nname (gnus-group-prefixed-name
+		     (if (mm-coding-system-p 'utf-8)
+			 (mm-encode-coding-string group 'utf-8)
+		       group)
+		     server))
+	(if ephemeral
+	    (gnus-group-read-ephemeral-group nname server t
+					     (cons (current-buffer)
+						   (if (eq major-mode
+							   'gnus-summary-mode)
+						       'summary 'group)))
+	  (when (gnus-ephemeral-group-p nname)
+	    (gnus-kill-ephemeral-group nname))
+	  (let ((gnus-level-default-subscribed
+		 (or nnshimbun-default-group-level
+		     gnus-level-default-subscribed)))
+	    (gnus-group-make-group group server))))
     (error "Can't find group")))
 
+;;;###autoload
+(defun gnus-group-make-shimbun-groups (server)
+  "Create all nnshimbun groups prepared for SERVER."
+  (interactive
+   (let ((minibuffer-setup-hook (append minibuffer-setup-hook
+					'(beginning-of-line))))
+     (unless (eq major-mode 'gnus-group-mode)
+       (error "Command invoked outside of a Gnus group buffer"))
+     (list (completing-read
+	    "Shimbun server address [Hit TAB to see candidates]: "
+	    (shimbun-servers-alist) nil t))))
+  (unless (string-equal server "")
+    (let ((gnus-level-default-subscribed (or nnshimbun-default-group-level
+					     gnus-level-default-subscribed))
+	  (gnus-verbose 0)
+	  (grps (reverse (shimbun-groups (shimbun-open server))))
+	  (inhibit-read-only t)
+	  grp group)
+      (if grps
+	  (when (or (= (length grps) 1)
+		    (prog1 (yes-or-no-p (format "\
+Are you sure you want to make %d groups for nnshimbun+%s:? "
+						(length grps) server))
+		      (message "")))
+	    (while grps
+	      (setq grp (pop grps)
+		    group (format "nnshimbun+%s:%s" server grp))
+	      (if (gnus-group-entry group)
+		  (progn
+		    (save-excursion
+		      (unless (gnus-group-goto-group group)
+			(gnus-group-update-group group)
+			(gnus-group-goto-group group))
+		      (gnus-group-remove-mark group)
+		      (gnus-group-change-level
+		       group
+		       gnus-level-default-subscribed
+		       (or (gnus-group-group-level) gnus-level-killed))
+		      (gnus-group-update-group-line)
+		      (delete-region (point-at-bol)
+				     (progn (forward-line 1) (point))))
+		    (gnus-group-insert-group-line-info group)
+		    (forward-line -1))
+		(gnus-group-make-group grp (list 'nnshimbun server)))))
+	(message "No group is found in nnshimbun+%s:" server)))))
+
+(defun nnshimbun-generate-download-script (&optional async)
+  "Generate download script for all subscribed schimbuns.
+Output will be put in a new buffer.  If called with a prefix,
+puts a '&' after each w3m command."
+  (interactive "P")
+  (switch-to-buffer
+   (get-buffer-create "*shimbun download script*"))
+  (erase-buffer)
+  (insert
+   (concat "#!/bin/sh\n# shimbun download script\n\n"
+	   "W3M=" (if w3m-command w3m-command "/usr/bin/w3m")
+	   "\nOPTS=\"-no-cookie -o accept_encoding=identity -dump_both\"\n\n"))
+  (let ((path (file-name-as-directory
+	       (expand-file-name shimbun-local-path)))
+	url fname)
+    ;; get all subscribed shimbun groups
+    (dolist (cur gnus-newsrc-alist)
+      (when (and (eq (car-safe (nth 4 cur)) 'nnshimbun)
+		 (<= (nth 1 cur) gnus-level-subscribed))
+	(when (string-match "nnshimbun\\+\\(.+\\):\\(.+\\)" (car cur))
+	  (nnshimbun-possibly-change-group (match-string 2 (car cur))
+					   (match-string 1 (car cur)))
+	  (when (setq url (shimbun-index-url nnshimbun-shimbun))
+	    (setq fname (concat path (substring (md5 url) 0 10) "_shimbun"))
+	    (insert
+	     (concat "$W3M $OPTS " (shell-quote-argument url) " > " fname
+		     (if async " &\n" "\n")))))))))
 
 (provide 'nnshimbun)
 

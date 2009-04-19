@@ -1,6 +1,6 @@
 ;;; sb-rakuten.el --- shimbun backend for rakuten diary -*- coding: iso-2022-7bit; -*-
 
-;; Copyright (C) 2003, 2004 NAKAJIMA Mikio <minakaji@namazu.org>
+;; Copyright (C) 2003, 2004, 2006 NAKAJIMA Mikio <minakaji@namazu.org>
 
 ;; Author: NAKAJIMA Mikio <minakaji@namazu.org>
 ;; Keywords: news
@@ -19,9 +19,9 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program; if not, you can either send email to this
-;; program's maintainer or write to: The Free Software Foundation,
-;; Inc.; 59 Temple Place, Suite 330; Boston, MA 02111-1307, USA.
+;; along with this program; see the file COPYING.  If not, write to
+;; the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+;; Boston, MA 02110-1301, USA.
 
 ;;; Commentary:
 
@@ -57,19 +57,6 @@
 (luna-define-method shimbun-index-url ((shimbun shimbun-rakuten))
   (format "http://api.plaza.rakuten.ne.jp/%s/rss/"
 	  (shimbun-current-group-internal shimbun)))
-
-(luna-define-method shimbun-rss-build-message-id
-  ((shimbun shimbun-rakuten) url date)
-  (unless (string-match
-	   "http://\\([^\/]+\\)/[^\/]+/[^\/]+/\\([0-9]+\\)-\\([0-9]+\\)-\\([0-9]+\\)"
-	   url)
-    (error "Cannot find a message-id base"))
-    (format "%s%s%s%%%s@%s"
-	    (match-string-no-properties 2 url)
-	    (match-string-no-properties 3 url)
-	    (match-string-no-properties 4 url)
-	    (shimbun-current-group-internal shimbun)
-	    (match-string-no-properties 1 url)))
 
 (luna-define-method shimbun-rss-get-date
   ((shimbun shimbun-rakuten) url)

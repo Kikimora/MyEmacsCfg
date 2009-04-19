@@ -1,6 +1,7 @@
 ;;; sb-text.el -- shimbun backend class for text content -*- coding: iso-2022-7bit; -*-
 
-;; Copyright (C) 2001, 2002, 2003, 2004 Yuuichi Teranishi <teranisi@gohome.org>
+;; Copyright (C) 2001, 2002, 2003, 2004, 2005
+;; Yuuichi Teranishi <teranisi@gohome.org>
 
 ;; Author: Yuuichi Teranishi <teranisi@gohome.org>
 ;; Keywords: news
@@ -18,9 +19,9 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program; if not, you can either send email to this
-;; program's maintainer or write to: The Free Software Foundation,
-;; Inc.; 59 Temple Place, Suite 330; Boston, MA 02111-1307, USA.
+;; along with this program; see the file COPYING.  If not, write to
+;; the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+;; Boston, MA 02110-1301, USA.
 
 ;;; Commentary:
 
@@ -49,21 +50,25 @@
   (let ((top (point)) chr)
     (while (if (>= (move-to-column shimbun-fill-column)
 		   shimbun-fill-column)
-	       (not (progn
-		      (if (memq (preceding-char) shimbun-kinsoku-eol-list)
-			  (progn
-			    (backward-char)
-			    (while (memq (preceding-char) shimbun-kinsoku-eol-list)
-			      (backward-char))
-			    (insert "\n"))
-			(while (memq (setq chr (following-char)) shimbun-kinsoku-bol-list)
-			  (forward-char))
-			(if (looking-at "\\s-+")
-			    (or (eolp) (delete-region (point) (match-end 0)))
-			  (or (> (char-width chr) 1)
-			      (re-search-backward "\\<" top t)
-			      (end-of-line)))
-			(or (eolp) (insert "\n"))))))
+	       (if (memq (char-before) shimbun-kinsoku-eol-list)
+		   (prog1
+		       t
+		     (backward-char)
+		     (while (memq (char-before) shimbun-kinsoku-eol-list)
+		       (backward-char))
+		     (insert "\n"))
+		 (while (memq (setq chr (char-after)) shimbun-kinsoku-bol-list)
+		   (forward-char))
+		 (if (looking-at "\\s-+")
+		     (or (eolp) (delete-region (point) (match-end 0)))
+		   (or (not chr)
+		       (> (char-width chr) 1)
+		       (re-search-backward "\\<" top t)
+		       (end-of-line)))
+		 (if (eolp)
+		     nil
+		   (insert "\n")
+		   t)))
       (setq top (point))))
   (forward-line 1)
   (not (eobp)))
@@ -73,7 +78,7 @@
   (while (search-forward "<p>" nil t)
     (insert "\n\n"))
   (goto-char (point-min))
-  (while (search-forward "<br>" nil t)
+  (while (re-search-forward "<br\\(:? /\\)?>" nil t)
     (insert "\n"))
   (shimbun-remove-markup)
   (shimbun-decode-entities)
@@ -82,17 +87,14 @@
   (goto-char (point-min))
   (when (skip-chars-forward "\n")
     (delete-region (point-min) (point)))
-  (while (search-forward "\n\n" nil t)
-    (let ((p (point)))
-      (when (skip-chars-forward "\n")
-	(delete-region p (point)))))
+  (while (re-search-forward "\n\n\n+" nil t)
+    (replace-match "\n\n"))
   (goto-char (point-max))
   (when (skip-chars-backward "\n")
     (delete-region (point) (point-max)))
   (insert "\n"))
 
-(luna-define-method shimbun-make-contents ((shimbun shimbun-text)
-					   header)
+(defun shimbun-make-text-contents (shimbun header)
   (shimbun-header-insert-and-buffer-string
    shimbun header nil
    ;; When cleaning has been succeeded, this article is treated as a
@@ -101,6 +103,10 @@
    (if (shimbun-clear-contents shimbun header)
        (shimbun-shallow-rendering)
      t)))
+
+(luna-define-method shimbun-make-contents ((shimbun shimbun-text)
+					   header)
+  (shimbun-make-text-contents shimbun header))
 
 (provide 'sb-text)
 

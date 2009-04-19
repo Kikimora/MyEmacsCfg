@@ -1,9 +1,18 @@
-(load "haskell-site-file.el")
 (load "~/.emacs.d/docsetview.el")
 (load "~/.emacs.d/lib/objc-c-mode.el")
-(load "~/.emacs.d/lib/js2.el")
+(add-to-list 'load-path "~/.emacs.d/lib/js2/build")
+(autoload 'js2-mode "js2" nil t)
 
-(setq auto-mode-alist (append '(("\\.h$" . objc-mode) ("\\.m$" . objc-mode) ("\\.js$" . js2-mode)) auto-mode-alist))
+(autoload 'csharp-mode "csharp-mode" nil t)
+(autoload 'php-mode "php-mode" nil t)
+(require 'html-script)
+
+(add-to-list 'auto-mode-alist '("\\.js$" . js2-mode))
+(add-to-list 'auto-mode-alist '("\\.h$" . objc-mode))
+(add-to-list 'auto-mode-alist '("\\.m$" . objc-mode))
+(add-to-list 'auto-mode-alist '("\\.cs$" . csharp-mode))
+(add-to-list 'auto-mode-alist '("\\.php$" . html-mode))
+
 
 (font-lock-add-keywords 'objc-mode
     ;;fontify Objc 2.0 keywords
@@ -73,6 +82,7 @@
   (let ((project (read-from-minibuffer "Project directory: " default-directory)))
     (setenv "PROJ_PATH" project)))
 
-(defun my-nxml-mode-hook ()
-  (local-set-key "\M-/" 'nxml-complete))
-(add-hook 'nxml-mode-common-hook 'my-nxml-mode-common-hook)
+
+(load "~/.emacs.d/lib/haskell-mode/haskell-site-file")
+(add-hook 'haskell-mode-hook 'turn-on-haskell-doc-mode)
+(add-hook 'haskell-mode-hook 'turn-on-haskell-indent)

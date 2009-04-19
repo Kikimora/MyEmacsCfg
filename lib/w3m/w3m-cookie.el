@@ -1,6 +1,7 @@
 ;;; w3m-cookie.el --- Functions for cookie processing
 
-;; Copyright (C) 2002, 2003 TSUCHIYA Masatoshi <tsuchiya@namazu.org>
+;; Copyright (C) 2002, 2003, 2005, 2006, 2008
+;; TSUCHIYA Masatoshi <tsuchiya@namazu.org>
 
 ;; Authors: Teranishi Yuuichi  <teranisi@gohome.org>
 ;; Keywords: w3m, WWW, hypermedia
@@ -18,9 +19,9 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program; if not, you can either send email to this
-;; program's maintainer or write to: The Free Software Foundation,
-;; Inc.; 59 Temple Place, Suite 330; Boston, MA 02111-1307, USA.
+;; along with this program; see the file COPYING.  If not, write to
+;; the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+;; Boston, MA 02110-1301, USA.
 
 ;;; Commentary:
 
@@ -48,7 +49,7 @@
 Currently only browser local cookies are stored.")
 
 (defconst w3m-cookie-two-dot-domains-regexp
-  (concat "\\.\\("
+  (concat "\\.\\(?:"
 	  (mapconcat 'identity (list "com" "edu" "net" "org" "gov" "mil" "int")
 		     "\\|")
 	  "\\)$")
@@ -74,6 +75,11 @@ If ask, ask user whether accept bad cookies or not."
 	  (const :tag "Don't accept bad cookies" nil)
 	  (const :tag "Ask accepting bad cookies" ask)
 	  (const :tag "Always accept bad cookies" t)))
+
+(defcustom w3m-cookie-save-cookies t
+  "*Non-nil means save cookies when emacs-w3m cookie system shutdown."
+  :group 'w3m
+  :type 'boolean)
 
 (defcustom w3m-cookie-file
   (expand-file-name ".cookie" w3m-profile-directory)
@@ -154,9 +160,12 @@ If ask, ask user whether accept bad cookies or not."
 				  (w3m-cookie-expires c))))
 	  (push c expires)
 	(when (and (not (w3m-cookie-ignore c))
-		   (string-match (concat
-				  (regexp-quote (w3m-cookie-domain c)) "$")
-				 host)
+		   (or
+		    ;; A special case that domain name is ".hostname".
+		    (string= (concat "." host) (w3m-cookie-domain c))
+		    (string-match (concat
+				   (regexp-quote (w3m-cookie-domain c)) "$")
+				  host))
 		   (string-match (concat
 				  "^" (regexp-quote (w3m-cookie-path c)))
 				 path))
@@ -173,11 +182,10 @@ If ask, ask user whether accept bad cookies or not."
 (defun w3m-parse-http-url (url)
   "Parse an absolute HTTP URL."
   (let (secure split)
-    (when (and (string-match w3m-url-components-regexp url)
-	       (or (string= (match-string 2 url) "http")
-		   (setq secure (string= (match-string 2 url) "https")))
-	       (match-beginning 4)
-	       (match-end 4))
+    (w3m-string-match-url-components url)
+    (when (and (match-beginning 4)
+	       (or (equal (match-string 2 url) "http")
+		   (setq secure (equal (match-string 2 url) "https"))))
       (setq split (save-match-data
 		    (split-string (match-string 4 url) ":")))
       (vector secure
@@ -315,6 +323,9 @@ If ask, ask user whether accept bad cookies or not."
     (cond
      ((string= host domain)		; Apparently netscape lets you do this
       t)
+     ;; A special case that domain name is ".hostname".
+     ((string= (concat "." host) domain)
+      t)
      ((>= numdots mindots)		; We have enough dots in domain name
       ;; Need to check and make sure the host is actually _in_ the
       ;; domain it wants to set a cookie for though.
@@ -407,16 +418,28 @@ If ask, ask user whether accept bad cookies or not."
   "Clear cookie list."
   (setq w3m-cookies nil))
 
-(defun w3m-cookie-save ()
-  "Save cookies."
+(defun w3m-cookie-save (&optional domain)
+  "Save cookies.
+When DOMAIN is non-nil, only save cookies whose domains match it."
+  (interactive)
   (let (cookies)
     (dolist (cookie w3m-cookies)
-      (when (and (w3m-cookie-expires cookie)
+      (when (and (or (not domain)
+		     (string= (w3m-cookie-domain cookie) domain))
+		 (w3m-cookie-expires cookie)
 		 (w3m-time-newer-p (w3m-time-parse-string
 				    (w3m-cookie-expires cookie))
 				   (current-time)))
 	(push cookie cookies)))
     (w3m-save-list w3m-cookie-file cookies)))
+
+(defun w3m-cookie-save-current-site-cookies ()
+  "Save cookies for the current site."
+  (interactive)
+  (when (and w3m-current-url
+	     (not (w3m-url-local-p w3m-current-url)))
+    (w3m-string-match-url-components w3m-current-url)
+    (w3m-cookie-save (match-string 4 w3m-current-url))))
 
 (defun w3m-cookie-load ()
   "Load cookies."
@@ -433,9 +456,10 @@ If ask, ask user whether accept bad cookies or not."
 
 ;;;###autoload
 (defun w3m-cookie-shutdown ()
-  "Save cookies."
+  "Save cookies, and reset cookies' data."
   (interactive)
-  (w3m-cookie-save)
+  (when w3m-cookie-save-cookies
+    (w3m-cookie-save))
   (setq w3m-cookie-init nil)
   (w3m-cookie-clear)
   (if (get-buffer " *w3m-cookie-parse-temp*")
@@ -453,10 +477,10 @@ BEG and END should be an HTTP response header region on current buffer."
 	    data)
 	(goto-char beg)
 	(while (re-search-forward
-		"^\\(Set-Cookie\\(2\\)?:\\) *\\(.*\\(\n[ \t].*\\)*\\)\n"
+		"^\\(?:Set-Cookie\\(2\\)?:\\) *\\(.*\\(?:\n[ \t].*\\)*\\)\n"
 		end t)
-	  (setq data (match-string 3))
-	  (if (match-beginning 2)
+	  (setq data (match-string 2))
+	  (if (match-beginning 1)
 	      (setq version 1))
 	  (apply
 	   (case version

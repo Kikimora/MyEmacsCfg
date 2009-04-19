@@ -1,6 +1,7 @@
 ;;; w3m-lnum.el --- Operations using link numbers
 
-;; Copyright (C) 2004, 2005 TSUCHIYA Masatoshi <tsuchiya@namazu.org>
+;; Copyright (C) 2004, 2005, 2006, 2007, 2009
+;; TSUCHIYA Masatoshi <tsuchiya@namazu.org>
 
 ;; Authors: TSUCHIYA Masatoshi <tsuchiya@namazu.org>
 ;; Keywords: w3m, WWW, hypermedia
@@ -18,9 +19,9 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program; if not, you can either send email to this
-;; program's maintainer or write to: The Free Software Foundation,
-;; Inc.; 59 Temple Place, Suite 330; Boston, MA 02111-1307, USA.
+;; along with this program; see the file COPYING.  If not, write to
+;; the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+;; Boston, MA 02110-1301, USA.
 
 ;;; Commentary:
 
@@ -42,11 +43,13 @@
 
 (require 'w3m)
 
-(defface w3m-link-numbering-face
+(defface w3m-link-numbering
   '((((class color) (background light)) (:foreground "gray60"))
     (((class color) (background dark)) (:foreground "gray50")))
   "Face used to highlight link numbers."
   :group 'w3m-face)
+;; backward-compatibility alias
+(put 'w3m-link-numbering-face 'face-alias 'w3m-link-numbering)
 
 (defcustom w3m-link-numbering-mode-hook nil
   "*Hook run after `w3m-link-numbering-mode' initialization."
@@ -102,13 +105,8 @@
 		  (progn
 		    (overlay-put overlay 'before-string num)
 		    (set-glyph-face (extent-begin-glyph overlay)
-				    'w3m-link-numbering-face))
-		(when (featurep 'w3m-e20)
-		  (overlay-put overlay
-			       'face (get-text-property (point) 'face)))
-		(put-text-property 0 (length num)
-				   'face 'w3m-link-numbering-face
-				   num)
+				    'w3m-link-numbering))
+		(w3m-add-face-property 0 (length num) 'w3m-link-numbering num)
 		(overlay-put overlay 'before-string num)
 		(overlay-put overlay 'evaporate t))
 	      (overlay-put overlay 'w3m-link-numbering-overlay i))))))))
@@ -129,6 +127,17 @@ of moving cursor."
 	    (throw 'found (w3m-print-this-url))))
 	(error "Cannot found your specified link: %d" arg))
     (w3m-view-this-url)))
+
+(defun w3m-go-to-linknum ()
+  "Turn on link numbers and ask for one to go to."
+  (interactive)
+  (let ((active w3m-link-numbering-mode))
+    (unless active
+      (w3m-link-numbering-mode 1))
+    (unwind-protect
+	(w3m-move-numbered-anchor (w3m-read-number "Anchor number: "))
+      (unless active
+	(w3m-link-numbering-mode 0)))))
 
 (provide 'w3m-lnum)
 

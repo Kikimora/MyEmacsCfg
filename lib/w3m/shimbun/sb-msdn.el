@@ -1,6 +1,6 @@
 ;;; sb-msdn.el --- shimbun backend for MSDN
 
-;; Copyright (C) 2004, 2005 Yoichi NAKAYAMA <yoichi@geiin.org>
+;; Copyright (C) 2004, 2005, 2006 Yoichi NAKAYAMA <yoichi@geiin.org>
 
 ;; Author: Yoichi NAKAYAMA <yoichi@geiin.org>
 ;; Keywords: news
@@ -19,9 +19,9 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program; if not, you can either send email to this
-;; program's maintainer or write to: The Free Software Foundation,
-;; Inc.; 59 Temple Place, Suite 330; Boston, MA 02111-1307, USA.
+;; along with this program; see the file COPYING.  If not, write to
+;; the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+;; Boston, MA 02110-1301, USA.
 
 ;;; Commentary:
 
@@ -75,16 +75,6 @@ List is available at:
 
 (luna-define-method shimbun-rss-process-date ((shimbun shimbun-msdn) date)
   date)
-
-(eval-and-compile
-  (autoload 'md5 "md5"))
-
-(luna-define-method shimbun-rss-build-message-id
-  ((shimbun shimbun-msdn) url date)
-  ;; don't insert group name in domain-part for cross posted articles
-  (format "<%s@%s.shimbun.namazu.org>"
-	  (md5 url)
-	  (shimbun-server shimbun)))
 
 (luna-define-method shimbun-article-url ((shimbun shimbun-msdn) header)
   (let ((url (shimbun-article-base-url shimbun header)))

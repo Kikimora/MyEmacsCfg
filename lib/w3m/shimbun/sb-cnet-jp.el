@@ -1,11 +1,12 @@
 ;;; sb-cnet-jp.el --- shimbun backend for CNET Japan -*- coding: iso-2022-7bit -*-
 
-;; Copyright (C) 2003, 2004, 2005 NAKAJIMA Mikio <minakaji@namazu.org>
+;; Copyright (C) 2003, 2004, 2005, 2006, 2007
+;; NAKAJIMA Mikio <minakaji@namazu.org>
 
 ;; Author: NAKAJIMA Mikio     <minakaji@namazu.org>,
 ;;         TSUCHIYA Masatoshi <tsuchiya@namazu.org>,
 ;;         Katsumi Yamaoka    <yamaoka@jpl.org>,
-;;         Tsuyoshi CHO       <mfalcon_sky@emailuser.net>
+;;         Tsuyoshi CHO       <tsuyoshi_cho@ybb.ne.jp>
 ;; Keywords: news
 ;; Created: Jun 14, 2003
 
@@ -22,38 +23,53 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program; if not, you can either send email to this
-;; program's maintainer or write to: The Free Software Foundation,
-;; Inc.; 59 Temple Place, Suite 330; Boston, MA 02111-1307, USA.
+;; along with this program; see the file COPYING.  If not, write to
+;; the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+;; Boston, MA 02110-1301, USA.
 
 ;;; Commentary:
 
 ;;; Code:
 
-(eval-when-compile
-  (require 'cl))
-
 (require 'shimbun)
+(require 'sb-multi)
 (require 'sb-rss)
 
-(luna-define-class shimbun-cnet-jp (shimbun-japanese-newspaper shimbun-rss) ())
+(luna-define-class shimbun-cnet-jp (shimbun-multi shimbun-rss) ())
 
 (defvar shimbun-cnet-jp-group-alist
-  '(("news"	     . "http://japan.cnet.com/rss/index.rdf")
-    ("blog.kenn"     . "http://blog.japan.cnet.com/kenn/index.rdf")
-    ("blog.lessig"   . "http://blog.japan.cnet.com/lessig/index.rdf")
-    ("blog.watanabe" . "http://blog.japan.cnet.com/watanabe/index.rdf")
-    ("blog.editors"  . "http://blog.japan.cnet.com/editors/index.rdf")))
+  '(("general" . "http://feed.japan.cnet.com/rss/index.rdf")
+    ("news" . "http://feed.japan.cnet.com/rss/news/index.rdf")
+    ;;("release" . "http://release.japan.cnet.com/rss/index.rdf")
+    ("special" . "http://feed.japan.cnet.com/rss/sp/index.rdf")
+    ("opinion" . "http://feed.japan.cnet.com/rss/opinion/index.rdf")
+    ;;("whitepaper" . "http://paper.japan.cnet.com/rss/index.rdf")
+    ;;("review" . "http://review.japan.cnet.com/rss/index.rdf")
+    ("blog.geetstate" . "http://blog.japan.cnet.com/geetstate/index.rdf")
+    ("blog.kenn" . "http://blog.japan.cnet.com/kenn/index.rdf")
+    ("blog.lessig" . "http://blog.japan.cnet.com/lessig/index.rdf")
+    ("blog.matsumura" . "http://blog.japan.cnet.com/matsumura/index.rdf")
+    ("blog.nakajima" . "http://blog.japan.cnet.com/nakajima/index.rdf")
+    ("blog.saeki" . "http://blog.japan.cnet.com/saeki/index.rdf")
+    ("blog.sakamoto" . "http://blog.japan.cnet.com/sakamoto/index.rdf")
+    ("blog.sasaki" . "http://blog.japan.cnet.com/sasaki/index.rdf")
+    ("blog.sentan" . "http://blog.japan.cnet.com/sentan/index.rdf")
+    ("blog.staff" . "http://blog.japan.cnet.com/staff/index.rdf")
+    ("blog.takawata" . "http://blog.japan.cnet.com/takawata/index.rdf")
+    ("blog.watanabe" . "http://blog.japan.cnet.com/watanabe/index.rdf")))
 
 (defvar shimbun-cnet-jp-orphaned-group-list
   '("blog.inoue"
     "blog.mori"
-    "blog.umeda"))
+    "blog.umeda"
+    "blog.editors"))
 
-(defvar shimbun-cnet-jp-server-name "CNET Japan")
-(defvar shimbun-cnet-jp-from-address  "webmaster@japan.cnet.com")
-(defvar shimbun-cnet-jp-content-start "<div class=\"leaf_body\">")
-(defvar shimbun-cnet-jp-content-end "<!--NEWS LETTER SUB-->")
+(defvar shimbun-cnet-jp-server-name "CNET Networks,Inc.")
+(defvar shimbun-cnet-jp-content-start
+  "<div class=\"\\(?:leaf\\|article\\)_body\\(?: \\(?:article\\|leaf\\)_body\\)?\">")
+(defvar shimbun-cnet-jp-content-end
+  "\\(<div \\(class=\"article_footer\"\\|id=\"bubble_tooltip\"\\)>\\|\
+<!--h3>トラックバック一覧</h3-->\\)")
 (defvar shimbun-cnet-jp-x-face-alist
   '(("default" . "X-Face: 0p7.+XId>z%:!$ahe?x%+AEm37Abvn]n\
 *GGh+>v=;[3`a{1lqO[$,~3C3xU_ri>[JwJ!9l0\n ~Y`b*eXAQ:*q=bBI\
@@ -72,119 +88,49 @@ _=ro*?]4:|n>]ZiLZ2LEo^2nr('C<+`lO~/!R[lH'N'4X&%\\I}8T!wt")))
 (luna-define-method shimbun-index-url ((shimbun shimbun-cnet-jp))
   (cdr (assoc (shimbun-current-group shimbun) shimbun-cnet-jp-group-alist)))
 
-(luna-define-method shimbun-rss-build-message-id
-  ((shimbun shimbun-cnet-jp) url date)
-  (if (or
-       ;; For news group
-       (string-match "http://japan\\.cnet\\.com/\
-\\(.+\\)/\\([,0-9]+\\)\\.htm\\?ref=rss" url)
-       ;; For blog group
-       (string-match "http://blog\\.japan\\.cnet\\.com/\
-\\([^/]+\\)/archives/\\([0-9]+\\)\\.html" url))
-      (concat "<"
-	      (shimbun-replace-in-string
-	       (match-string-no-properties 2 url) "," ".")
-	      "%" (shimbun-current-group shimbun) "@japan.cnet.com>")
-    (error "Cannot find message-id base")))
+(luna-define-method shimbun-multi-next-url ((shimbun shimbun-cnet-jp)
+					    header url)
+  (goto-char (point-min))
+  (when (re-search-forward "<li class=\"next\"><a href=\"\\([^\"]+\\)\"" nil t)
+    (shimbun-expand-url (match-string 1) url)))
 
-(defun shimbun-cnet-jp-clean-text-page ()
-  (let ((case-fold-search t) (start))
-    (goto-char (point-min))
-    (when (and (search-forward shimbun-cnet-jp-content-start nil t)
-	       (setq start (match-end 0))
-	       (re-search-forward shimbun-cnet-jp-content-end nil t))
-      (delete-region (match-beginning 0) (point-max))
-      (delete-region (point-min) start)
-      (goto-char (point-min))
-      )))
-
-(defun shimbun-cnet-jp-retrieve-next-pages (shimbun header base-cid url
-						    &optional images)
-  (let ((case-fold-search t) (next))
-    (goto-char (point-min))
-    (when (re-search-forward
-	   "<a +href=\"\\([^\"]*\\)\"[^>]*>次のページ" nil t)
-      (setq next (shimbun-expand-url (match-string 1) url)))
-    (shimbun-cnet-jp-clean-text-page)
-    (goto-char (point-min))
-    ;; remove page footer (last page is ignored)
-    (when (re-search-forward "| [0-9]+ / [0-9]+ |" nil t)
-      (if next
-	  ;; isn't last
-	  (progn
-	    (goto-char (match-end 0))
-	    ;; "<a href...>前の..." or "| 1 "
-	    (re-search-backward "\\(<a\\|| 1 \\)" nil t)
-	    (delete-region (match-beginning 0) (point-max)))
-	;; last page
-	(let ((end (match-end 0)))
-	  (goto-char end)
-	  (re-search-backward "<a" nil t) ;; "<a href...>前の..."
-	  (delete-region (match-beginning 0) end))))
-    (goto-char (point-min))
-    (insert "<html>\n<head>\n<base href=\"" url "\">\n</head>\n<body>\n")
-    (goto-char (point-max))
-    (unless next
-      (insert (shimbun-footer shimbun header t)))
-    (insert "\n</body>\n</html>\n")
-    (when shimbun-encapsulate-images
-      (setq images (shimbun-mime-replace-image-tags base-cid url images)))
-    (let ((body (shimbun-make-text-entity "text/html" (buffer-string)))
-	  (result (when next
-		    (with-temp-buffer
-		      (shimbun-fetch-url shimbun next)
-		      (shimbun-clear-contents shimbun header)
-		      (shimbun-cnet-jp-retrieve-next-pages
-		       shimbun header base-cid next images)))))
-      (list (cons body (car result))
-	    (or (nth 1 result) images)))))
-
-(luna-define-method shimbun-make-contents ((shimbun shimbun-cnet-jp) header)
-  (let ((case-fold-search t))
-    (shimbun-clear-contents shimbun header)
-    (let ((base-cid (shimbun-header-id header)))
-      (when (string-match "\\`<\\([^>]+\\)>\\'" base-cid)
-	(setq base-cid (match-string 1 base-cid)))
-      (let (body)
-	(multiple-value-bind (texts images)
-	    (shimbun-cnet-jp-retrieve-next-pages shimbun header base-cid
-						 (shimbun-header-xref header))
-	  (erase-buffer)
-	  (if (= (length texts) 1)
-	      (setq body (car texts))
-	    (setq body (shimbun-make-multipart-entity))
-	    (let ((i 0))
-	      (dolist (text texts)
-		(setf (shimbun-entity-cid text)
-		      (format "shimbun.%d.%s" (incf i) base-cid))))
-	    (apply 'shimbun-entity-add-child body texts))
-	  (when images
-	    (setf (shimbun-entity-cid body) (concat "shimbun.0." base-cid))
-	    (let ((new (shimbun-make-multipart-entity)))
-	      (shimbun-entity-add-child new body)
-	      (apply 'shimbun-entity-add-child new
-		     (mapcar 'cdr (nreverse images)))
-	      (setq body new))))
-	(shimbun-header-insert shimbun header)
-	(insert "MIME-Version: 1.0\n")
-	(shimbun-entity-insert body)))
-    (buffer-string)))
-
-(luna-define-method shimbun-clear-contents :before
-  ((shimbun shimbun-cnet-jp) header)
+(luna-define-method shimbun-clear-contents :before ((shimbun shimbun-cnet-jp)
+						    header)
   (shimbun-strip-cr)
-  ;; remove advertisement <div class="ad.*"> - </div>
-  (shimbun-remove-tags "<div +class=\"?ad" "</div>")
-  ;; remove column <div class="pall5( bd1)"> - </div>
-  (shimbun-remove-tags "<div +class=\"?pall5" "</div>")
   (shimbun-remove-tags "<script" "</script>")
-  (shimbun-remove-tags "<noscript" "</noscript>"))
+  (shimbun-remove-tags "<noscript" "</noscript>")
+  (shimbun-remove-tags "<div class=\"photor_thumb_wrap\"" "</div>")
+  (shimbun-remove-tags "<div class=\"block_infocnet_stb\">" "</div>")
+  (shimbun-remove-tags "<div class=\"block_ad_print\">"
+		       "<!-- block_ad_print END -->")
+  (shimbun-remove-tags "<!--AD_ART_S-->" "<!--AD_ART_S END-->"))
 
-(luna-define-method shimbun-footer :around ((shimbun shimbun-cnet-jp) header
-					    &optional html)
-  (if (string= "news" (shimbun-current-group shimbun))
-      (luna-call-next-method)
-    ""))
+(luna-define-method shimbun-multi-clear-contents ((shimbun shimbun-cnet-jp)
+						  header
+						  has-previous-page
+						  has-next-page)
+  (when (shimbun-clear-contents shimbun header)
+    (cond
+     (has-next-page
+      (goto-char (point-max))
+      (when (search-backward "<div class=\"navi_paging_alt\">" nil t)
+	(delete-region (point) (point-max))))
+     (has-previous-page
+      (shimbun-remove-tags "<div class=\"navi_paging_alt\">"
+			   "<!-- navi_paging_alt END -->")))
+    t))
+
+(luna-define-method shimbun-make-contents :before ((shimbun shimbun-cnet-jp)
+						   header)
+  (goto-char (point-min))
+  (when (re-search-forward "\\(s.prop2=\"\\([^\"]+\\)\"\\|\
+<dt +class=\"author\">\\([^\n]+\\)</dt>\\)" nil t)
+    (let ((from (or (match-string 2) (match-string 3))))
+      (setq from (shimbun-replace-in-string from "文：" ""))
+      (setq from (shimbun-replace-in-string from "翻訳校正：*" ""))
+      (setq from (shimbun-replace-in-string from " *<br */?> *" ", "))
+      (setq from (shimbun-replace-in-string from "、" ", "))
+      (shimbun-header-set-from header from))))
 
 (provide 'sb-cnet-jp)
 

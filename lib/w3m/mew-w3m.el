@@ -1,12 +1,12 @@
 ;; mew-w3m.el --- View Text/Html content with w3m in Mew
 
-;; Copyright (C) 2001, 2002, 2003, 2004
+;; Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2008
 ;; TSUCHIYA Masatoshi <tsuchiya@namazu.org>
 
 ;; Author: Shun-ichi GOTO  <gotoh@taiyo.co.jp>,
 ;;         Hideyuki SHIRAI <shirai@meadowy.org>
 ;; Created: Wed Feb 28 03:31:00 2001
-;; Version: $Revision: 1.53.2.2 $
+;; Version: $Revision: 1.64 $
 ;; Keywords: Mew, mail, w3m, WWW, hypermedia
 
 ;; This file is a part of emacs-w3m.
@@ -22,9 +22,9 @@
 ;; General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program; if not, you can either send email to this
-;; program's maintainer or write to: The Free Software Foundation,
-;; Inc.; 59 Temple Place, Suite 330; Boston, MA 02111-1307, USA.
+;; along with this program; see the file COPYING.  If not, write to
+;; the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+;; Boston, MA 02110-1301, USA.
 
 ;;; Commentary:
 
@@ -119,6 +119,11 @@ This variable is effective only in XEmacs, Emacs 21 and Emacs 22."
     (autoload 'mew-syntax-get-entry-by-cid "mew")
     (defun mew-cache-hit (&rest args) ())))
 
+(defmacro mew-w3m-add-text-properties (props)
+  `(add-text-properties (point-min)
+			(min (1+ (point-min)) (point-max))
+			,props))
+
 (defun mew-w3m-minor-mode-setter ()
   "Check message buffer and activate w3m-minor-mode."
   (w3m-minor-mode (or (and (get-text-property (point-min) 'w3m)
@@ -147,8 +152,7 @@ This variable is effective only in XEmacs, Emacs 21 and Emacs 22."
 				     mew-w3m-safe-url-regexp)))
 	 (w3m-toggle-inline-images)
 	 (mew-elet
-	  (put-text-property (point-min) (1+ (point-min))
-			     'w3m-images (not image))
+	  (mew-w3m-add-text-properties `(w3m-images ,(not image)))
 	  (set-buffer-modified-p nil)))))))
 
 ;; processing Text/Html contents with w3m.
@@ -225,10 +229,7 @@ This variable is effective only in XEmacs, Emacs 21 and Emacs 22."
 		      (progn (insert-buffer-substring cache begin end)
 			     (point))
 		      xref))))
-       (put-text-property (point-min) (1+ (point-min)) 'w3m t)
-       (put-text-property (point-min) (1+ (point-min))
-			  'w3m-images mew-w3m-auto-insert-image)))))
-
+       (mew-w3m-add-text-properties `(w3m t w3m-images ,mew-w3m-auto-insert-image))))))
 
 (defvar w3m-mew-support-cid (and (boundp 'mew-version-number)
 				 (fboundp 'mew-syntax-get-entry-by-cid)))
@@ -239,25 +240,24 @@ This variable is effective only in XEmacs, Emacs 21 and Emacs 22."
       (when (and w3m-mew-support-cid
 		 (string-match "^cid:\\(.+\\)" url))
 	(setq url (match-string 1 url))
-	(let ((fld (mew-current-get-fld (mew-frame-id))))
-	  (set-buffer fld)
-	  (let* ((msg (mew-current-get-msg (mew-frame-id)))
-		 (cache (mew-cache-hit fld msg 'must-hit))
-		 (syntax (mew-cache-decode-syntax cache))
-		 cidstx beg end)
-	    (if (string< "4.0.53" mew-version-number)
-		(setq cidstx (mew-syntax-get-entry-by-cid syntax (concat "<" url ">")))
- 	      (setq cidstx (mew-syntax-get-entry-by-cid syntax url)))
-	    (when cidstx
-	      (setq beg (mew-syntax-get-begin cidstx))
-	      (setq end (mew-syntax-get-end cidstx))
-	      (prog1
-		  (with-current-buffer output-buffer
-		    (set-buffer-multibyte t)
-		    (insert-buffer-substring cache beg end)
-		    (set-buffer-multibyte nil)
-		    (downcase (car (mew-syntax-get-ct cidstx))))
-		(run-hooks 'mew-w3m-cid-retrieve-hook)))))))))
+	(let* ((fld (mew-current-get-fld (mew-frame-id)))
+	       (msg (mew-current-get-msg (mew-frame-id)))
+	       (cache (mew-cache-hit fld msg 'must-hit))
+	       (syntax (mew-cache-decode-syntax cache))
+	       cidstx beg end)
+	  (if (string< "4.0.53" mew-version-number)
+	      (setq cidstx (mew-syntax-get-entry-by-cid syntax (concat "<" url ">")))
+	    (setq cidstx (mew-syntax-get-entry-by-cid syntax url)))
+	  (when cidstx
+	    (setq beg (mew-syntax-get-begin cidstx))
+	    (setq end (mew-syntax-get-end cidstx))
+	    (prog1
+		(with-current-buffer output-buffer
+		  (set-buffer-multibyte t)
+		  (insert-buffer-substring cache beg end)
+		  (set-buffer-multibyte nil)
+		  (downcase (car (mew-syntax-get-ct cidstx))))
+	      (run-hooks 'mew-w3m-cid-retrieve-hook))))))))
 
 (when w3m-mew-support-cid
   (push (cons 'mew-message-mode 'mew-w3m-cid-retrieve)
@@ -279,6 +279,138 @@ This variable is effective only in XEmacs, Emacs 21 and Emacs 22."
 	  (message "Download: %s...done" name)
 	(message "Download: %s...failed" name))
       (sit-for 1))))
+
+(defun w3m-mail-compose-with-mew (source url charset content-type
+					 to subject other-headers)
+  "Compose a mail using Mew."
+  (when (one-window-p)
+    (split-window))
+  (select-window (next-window))
+  (condition-case nil
+      (unless (and (boundp 'mew-init-p) mew-init-p
+		   (progn
+		     (mew-summary-jump-to-draft-buffer)
+		     (and (eq major-mode 'mew-draft-mode)
+			  (y-or-n-p "Attatch this draft? "))))
+	(mew-user-agent-compose to subject other-headers))
+    (quit
+     (if (y-or-n-p "Create new draft? ")
+	 (mew-user-agent-compose to subject other-headers)
+       (delete-window)
+       (error "Abort mail composing"))))
+  (let* ((basename (file-name-nondirectory (w3m-url-strip-query url)))
+	 (ct (downcase  content-type))
+	 (mew-attach-move-next-after-copy nil)
+	 (i 1)
+	 (pos -1)
+	 (csorig (mew-charset-to-cs (symbol-name charset)))
+	 last filename cs)
+    (unless (mew-attach-p)
+      (mew-draft-prepare-attachments))
+    ;; goto last attachment
+    (setq last (catch 'last
+		 (while (not (= pos (point)))
+		   (setq i (1+ i))
+		   (mew-attach-goto-number 'here `(,i))
+		   (when (mew-attach-line-lastp)
+		     (throw 'last t)))))
+    (when (eq csorig mew-cs-unknown)
+      (setq csorig nil))
+    (if (or (not last) (not (mew-attach-not-line012-1)))
+	(message "Can not attach from emacs-w3m here!")
+      ;; Application/.*xml is not inline view with Mew.
+      (cond
+       ((string= "application/xhtml+xml" ct)
+	(setq ct "text/html"))
+       ((string-match "^application/.*xml$" ct)
+	(setq ct "text/xml")))
+      (setq filename (expand-file-name (cond
+					((and (string-match "^[\t ]*$" basename)
+					      (string= ct "text/html"))
+					 "index.html")
+					((and (string-match "^[\t ]*$" basename)
+					      (string= ct "text/xml"))
+					 "index.xml")
+					((string-match "^[\t ]*$" basename)
+					 "dummy")
+					(t
+					 basename))
+				       mew-temp-dir))
+      (with-temp-buffer
+	(cond
+	 ((string= "text/html" ct)
+	  (insert source)
+	  (setq cs (w3m-static-if (fboundp 'mew-text/html-detect-cs)
+		       (mew-text/html-detect-cs (point-min) (point-max))))
+	  (when (or (eq cs mew-cs-unknown) (not cs))
+	    (cond
+	     (csorig
+	      (setq cs csorig))
+	     (t
+	      (setq cs mew-cs-autoconv)))))
+	 ((string= "text/xml" ct)
+	  (insert source)
+	  (setq cs (w3m-static-if (fboundp 'mew-text/html-detect-cs)
+		       (mew-text/html-detect-cs (point-min) (point-max))))
+	  (when (or (eq cs mew-cs-unknown) (not cs))
+	    (cond
+	     (csorig
+	      (setq cs csorig))
+	     ((mew-coding-system-p 'utf-8)
+	      (setq cs 'utf-8))
+	     (t
+	      (setq cs mew-cs-autoconv)))))
+	 ((string-match "^text/" ct)
+	  (insert source)
+	  (setq cs mew-cs-autoconv))
+	 (t
+	  (mew-set-buffer-multibyte nil)
+	  (insert source)
+	  (setq cs mew-cs-binary)))
+	(setq charset (cond
+		       ((eq cs mew-cs-autoconv)
+			(mew-charset-guess-region (point-min) (point-max)))
+		       ((eq cs mew-cs-binary)
+			nil)
+		       (t
+			(mew-cs-to-charset cs))))
+	(mew-frwlet
+	 mew-cs-text-for-read cs
+	 (write-region (point-min) (point-max) filename nil 'nomsg)))
+      (when ct
+	(setq ct (mew-capitalize ct)))
+      (mew-attach-copy filename (file-name-nondirectory filename))
+      ;; content-type check & set
+      (let* ((nums (mew-syntax-nums))
+	     (syntax (mew-syntax-get-entry mew-encode-syntax nums))
+	     (file (mew-syntax-get-file syntax))
+	     (ctl (mew-syntax-get-ct syntax))
+	     (ct-orig (mew-syntax-get-value ctl 'cap))
+	     cte)
+	(unless (string= ct ct-orig)
+	  (setq ctl (list ct))
+	  (mew-syntax-set-ct syntax ctl)
+	  (setq cte (mew-ctdb-cte (mew-ctdb-by-ct ct)))
+	  (mew-syntax-set-cte syntax cte)
+	  (mew-syntax-set-cdp syntax (mew-syntax-cdp-format ct file))
+	  (mew-encode-syntax-print mew-encode-syntax)))
+      ;; charset set
+      (let* ((nums (mew-syntax-nums))
+	     (syntax (mew-syntax-get-entry mew-encode-syntax nums))
+	     (file (mew-syntax-get-file syntax))
+	     (ctl (mew-syntax-get-ct syntax))
+	     (ct (mew-syntax-get-value ctl 'cap))
+	     (params (mew-syntax-get-params ctl))
+	     (ocharset "charset"))
+	(when (and (string-match "^Text" ct) charset)
+	  (setq params (mew-delete ocharset params))
+	  (setq ctl (cons ct (cons (list ocharset charset) params)))
+	  (mew-syntax-set-ct syntax ctl))
+	(mew-syntax-set-cd syntax url)
+	(mew-encode-syntax-print mew-encode-syntax))
+      (message "Compose a mail using Mew with %s...done" url)
+      (when (and (file-exists-p filename) (file-writable-p filename))
+	(delete-file filename)))))
 
 ;;;
 (provide 'mew-w3m)

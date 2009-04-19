@@ -1,7 +1,9 @@
 ;;; sb-rss.el --- shimbun backend for RSS (Rich Site Summary).
 
-;; Copyright (C) 2003, 2004, 2005 Koichiro Ohba <koichiro@meadowy.org>
-;; Copyright (C) 2003, 2004, 2005 NAKAJIMA Mikio <minakaji@osaka.email.ne.jp>
+;; Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009
+;; Koichiro Ohba <koichiro@meadowy.org>
+;; Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009
+;; NAKAJIMA Mikio <minakaji@osaka.email.ne.jp>
 
 ;; Author: Koichiro Ohba <koichiro@meadowy.org>
 ;;         NAKAJIMA Mikio <minakaji@osaka.email.ne.jp>
@@ -21,9 +23,9 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program; if not, you can either send email to this
-;; program's maintainer or write to: The Free Software Foundation,
-;; Inc.; 59 Temple Place, Suite 330; Boston, MA 02111-1307, USA.
+;; along with this program; see the file COPYING.  If not, write to
+;; the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+;; Boston, MA 02110-1301, USA.
 
 ;;; Commentary:
 
@@ -39,7 +41,19 @@
     (require 'xml)))
 (eval '(require 'xml))
 
-(luna-define-class shimbun-rss (shimbun) ())
+(eval-and-compile
+  (luna-define-class shimbun-rss (shimbun) (ignored-subject)))
+
+(luna-define-method initialize-instance :after ((shimbun shimbun-rss)
+						&rest init-args)
+  (shimbun-rss-initialize-ignored-subject shimbun))
+
+(defun shimbun-rss-initialize-ignored-subject (shimbun)
+  (luna-set-slot-value shimbun 'ignored-subject
+		       (symbol-value
+			(intern-soft (format "shimbun-%s-ignored-subject"
+					     (shimbun-server shimbun)))))
+  shimbun)
 
 (luna-define-generic shimbun-rss-process-date (shimbun-rss date)
   "Process DATE string and return proper Date string to show it in MUA.")
@@ -129,17 +143,32 @@ but you can identify it from the URL, define this method in a backend.")
 (luna-define-method shimbun-rss-get-date ((shimbun shimbun-rss) url)
   nil)
 
-(luna-define-generic shimbun-rss-build-message-id (shimbun-rss url date)
-  "Build unique message-id from URL and DATE and return it.")
+(luna-define-generic shimbun-rss-build-message-id (shimbun-rss
+						   url &optional date)
+  "Build unique message-id from URL and DATE and return it.
+If return nil, it mean argument URL are not SHIMBUN entry.
+Basically, implement illeagal URL to generate error message.
+But clarify need ignored URL return nil.")
+
+(luna-define-method shimbun-rss-build-message-id ((shimbun shimbun-rss)
+						  url &optional date)
+  (when (string-match "[?#]" url)
+    (setq url (substring url 0 (match-beginning 0))))
+  (concat "<" (md5 url) "%" (shimbun-current-group shimbun)
+	  "@" (shimbun-server shimbun) ".shimbun.namazu.org>"))
 
 (luna-define-method shimbun-headers ((shimbun shimbun-rss) &optional range)
   (with-temp-buffer
     (let ((case-fold-search t))
       (shimbun-retrieve-url
        (shimbun-index-url shimbun) 'no-cache 'no-decode)
-      (goto-char (point-min))
-      (decode-coding-region (point-min) (point-max) (shimbun-rss-get-encoding))
-      (set-buffer-multibyte t)
+      ;; In some rss feeds, LFs might be used mixed with CRLFs.
+      (shimbun-strip-cr)
+      (insert
+       (prog1
+	   (decode-coding-string (buffer-string) (shimbun-rss-get-encoding))
+	 (erase-buffer)
+	 (set-buffer-multibyte t)))
       (shimbun-get-headers shimbun range))))
 
 (luna-define-method shimbun-get-headers ((shimbun shimbun-rss)
@@ -148,10 +177,6 @@ but you can identify it from the URL, define this method in a backend.")
 
 (defun shimbun-rss-get-headers (shimbun &optional range
 					need-descriptions need-all-items)
-  (static-when (featurep 'xemacs)
-    ;; It's one of many bugs in XEmacs that the coding systems *-dos
-    ;; provided by Mule-UCS don't convert CRLF to LF when decoding.
-    (shimbun-strip-cr))
   (let ((xml (condition-case err
 		 (xml-parse-region (point-min) (point-max))
 	       (error
@@ -159,7 +184,8 @@ but you can identify it from the URL, define this method in a backend.")
 			 (shimbun-index-url shimbun)
 			 (error-message-string err))
 		nil)))
-	dc-ns rss-ns author headers)
+	(ignored-subject (luna-slot-value shimbun 'ignored-subject))
+	dc-ns rss-ns author hankaku headers)
     (when xml
       (setq dc-ns (shimbun-rss-get-namespace-prefix
 		   xml "http://purl.org/dc/elements/1.1/")
@@ -174,54 +200,87 @@ but you can identify it from the URL, define this method in a backend.")
 		       (or
 			(shimbun-rss-node-text rss-ns 'author channel)
 			(shimbun-rss-node-text dc-ns 'creator channel)
-			(shimbun-rss-node-text dc-ns 'contributor channel))))))
-      (dolist (item (shimbun-rss-find-el (intern (concat rss-ns "item")) xml))
-	(let ((url (and (listp item)
-			(eq (intern (concat rss-ns "item")) (car item))
-			(shimbun-rss-node-text rss-ns 'link (cddr item)))))
-	  (when url
-	    (let* ((date (or (shimbun-rss-get-date shimbun url)
-			     (shimbun-rss-node-text dc-ns 'date item)
-			     (shimbun-rss-node-text rss-ns 'pubDate item)))
-		   (id (shimbun-rss-build-message-id shimbun url date)))
-	      (when (or need-all-items
-			(not (shimbun-search-id shimbun id)))
-		(push (shimbun-create-header
-		       0
-		       (shimbun-rss-node-text rss-ns 'title item)
-		       (or (shimbun-rss-node-text rss-ns 'author item)
-			   (shimbun-rss-node-text dc-ns 'creator item)
-			   (shimbun-rss-node-text dc-ns 'contributor item)
-			   author
-			   (shimbun-from-address shimbun))
-		       (shimbun-rss-process-date shimbun date)
-		       id "" 0 0 url
-		       (when need-descriptions
-			 (let ((description (shimbun-rss-node-text
-					     rss-ns 'description item)))
-			   (when description
-			     (list (cons 'description description))))))
-		      headers))))))
-      headers)))
+			(shimbun-rss-node-text dc-ns 'contributor channel)))))
+	    hankaku (unless (memq (shimbun-japanese-hankaku shimbun)
+				  '(body nil))
+		      (generate-new-buffer " *temp*")))
+      (unwind-protect
+	  (dolist (item (shimbun-rss-find-el (intern (concat rss-ns "item"))
+					     xml)
+			headers)
+	    (let ((url (and (listp item)
+			    (eq (intern (concat rss-ns "item")) (car item))
+			    (shimbun-rss-node-text rss-ns 'link (cddr item)))))
+	      (when url
+		(let* ((date (or (shimbun-rss-get-date shimbun url)
+				 (shimbun-rss-node-text dc-ns 'date item)
+				 (shimbun-rss-node-text rss-ns 'pubDate item)))
+		       (id (shimbun-rss-build-message-id shimbun url date))
+		       (subject (shimbun-rss-node-text rss-ns 'title item)))
+		  (when (and id
+			     (or need-all-items
+				 (not (shimbun-search-id shimbun id)))
+			     (if (and ignored-subject subject)
+				 (not (string-match ignored-subject subject))
+			       t))
+		    (push
+		     (shimbun-create-header
+		      0
+		      (if hankaku
+			  (with-current-buffer hankaku
+			    (insert (or subject ""))
+			    (shimbun-japanese-hankaku-region (point-min)
+							     (point-max))
+			    (prog1 (buffer-string) (erase-buffer)))
+			subject)
+		      (or (shimbun-rss-node-text rss-ns 'author item)
+			  (shimbun-rss-node-text dc-ns 'creator item)
+			  (shimbun-rss-node-text dc-ns 'contributor item)
+			  author
+			  (shimbun-from-address shimbun))
+		      (shimbun-rss-process-date shimbun date)
+		      id "" 0 0 url
+		      (when need-descriptions
+			(let ((description (shimbun-rss-node-text
+					    rss-ns 'description item)))
+			  (when description
+			    (list (cons 'description description))))))
+		     headers))))))
+	(when (buffer-live-p hankaku)
+	  (kill-buffer hankaku))))))
 
 ;;; Internal functions
 
 ;;; XML functions
 
+(defvar shimbun-rss-compatible-encoding-alist
+  '((iso-8859-1 . windows-1252)
+    (iso-8859-8 . windows-1255)
+    (iso-8859-9 . windows-1254))
+  "Alist of encodings and those supersets.
+The cdr of each element is used to decode data if it is available when
+the car is what the data specify as the encoding.  Or, the car is used
+for decoding when the cdr that the data specify is not available.")
+
 (defun shimbun-rss-get-encoding ()
-  (let (end encoding)
-    (cond
-     ((search-forward "<?" nil t nil)
-      (let ((pos (point)))
-	(setq end (search-forward "?>"))
-	(goto-char pos))
-      (setq encoding
-	    (if (re-search-forward "encoding=\"\\([^ ]+\\)\"" end t)
-		(downcase (match-string-no-properties 1))
-	      "utf-8")))
-     (t ;; XML Default encoding.
-      (setq encoding "utf-8")))
-    (intern-soft (concat encoding "-dos"))))
+  "Return an encoding attribute specified in the current xml contents.
+If `shimbun-rss-compatible-encoding-alist' specifies the compatible
+encoding, it is used instead.  If the xml contents doesn't specify the
+encoding, return `utf-8' which is the default encoding for xml if it
+is available, otherwise return nil."
+  (goto-char (point-min))
+  (if (re-search-forward
+       "<\\?[^>]*encoding=\\(\"\\([^\">]+\\)\"\\|'\\([^'>]+\\)'\\)"
+       nil t)
+      (let ((encoding (intern (downcase (or (match-string 2)
+					    (match-string 3))))))
+	(or
+	 (shimbun-find-coding-system
+	  (cdr (assq encoding shimbun-rss-compatible-encoding-alist)))
+	 (shimbun-find-coding-system encoding)
+	 (shimbun-find-coding-system
+	  (car (rassq encoding shimbun-rss-compatible-encoding-alist)))))
+    (shimbun-find-coding-system 'utf-8)))
 
 (defun shimbun-rss-node-text (namespace local-name element)
   (let* ((node (assq (intern (concat namespace (symbol-name local-name)))
@@ -230,7 +289,8 @@ but you can identify it from the URL, define this method in a backend.")
 		   (shimbun-rss-node-just-text node)
 		 node))
 	 (cleaned-text (if text (shimbun-replace-in-string
-				 text "^[ \000-\037\177]+\\|[ \000-\037\177]+$" ""))))
+				 text "^[ \000-\037\177]+\\|[ \000-\037\177]+$"
+				 ""))))
     (if (string-equal "" cleaned-text)
 	nil
       cleaned-text)))
@@ -241,26 +301,23 @@ but you can identify it from the URL, define this method in a backend.")
     node))
 
 (defun shimbun-rss-find-el (tag data &optional found-list)
-  "Find the all matching elements in the data.  Careful with this on
-large documents!"
-  (if (listp data)
-      (mapcar (lambda (bit)
-		(if (car-safe bit)
-		    (progn (if (equal tag (car bit))
-			       (setq found-list
-				     (append found-list
-					     (list bit))))
-			   (if (and (listp (car-safe (caddr bit)))
-				    (not (stringp (caddr bit))))
-			       (setq found-list
-				     (append found-list
-					     (shimbun-rss-find-el
-					      tag (caddr bit))))
-			     (setq found-list
-				   (append found-list
-					   (shimbun-rss-find-el
-					    tag (cddr bit))))))))
-	      data))
+  "Find the all matching elements in the data.
+Careful with this on large documents!"
+  (when (consp data)
+    (dolist (bit data)
+      (when (car-safe bit)
+	(when (equal tag (car bit))
+	  ;; Old xml.el may return a list of string.
+	  (when (and (consp (caddr bit))
+		     (stringp (caaddr bit)))
+	    (setcar (cddr bit) (caaddr bit)))
+	  (setq found-list (append found-list (list bit))))
+	(if (and (consp (car-safe (caddr bit)))
+		 (not (stringp (caddr bit))))
+	    (setq found-list (append found-list
+				     (shimbun-rss-find-el tag (caddr bit))))
+	  (setq found-list (append found-list
+				   (shimbun-rss-find-el tag (cddr bit))))))))
   found-list)
 
 (defun shimbun-rss-get-namespace-prefix (el uri)

@@ -1,8 +1,8 @@
-;;; sb-cnn-jp.el --- shimbun backend for CNN Japan -*- coding: iso-2022-7bit; -*-
+;;; sb-cnn-jp.el --- shimbun backend for CNN Japan
 
-;; Copyright (C) 2003, 2004, 2005 Tsuyoshi CHO <mfalcon21@hotmail.com>
+;; Copyright (C) 2003, 2004, 2005, 2008 Tsuyoshi CHO <tsuyoshi_cho@ybb.ne.jp>
 
-;; Author: Tsuyoshi CHO <mfalcon21@hotmail.com>
+;; Author: Tsuyoshi CHO <tsuyoshi_cho@ybb.ne.jp>
 ;; Keywords: news
 ;; Created: May 22, 2004
 
@@ -19,9 +19,9 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program; if not, you can either send email to this
-;; program's maintainer or write to: The Free Software Foundation,
-;; Inc.; 59 Temple Place, Suite 330; Boston, MA 02111-1307, USA.
+;; along with this program; see the file COPYING.  If not, write to
+;; the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+;; Boston, MA 02110-1301, USA.
 
 ;;; Commentary:
 
@@ -40,8 +40,11 @@
 (defvar shimbun-cnn-jp-server-name "CNN Japan")
 (defvar shimbun-cnn-jp-from-address "webmaster@cnn.co.jp")
 (defvar shimbun-cnn-jp-content-start
-  "Web\\(\\s \\|&nbsp;\\)+posted\\(\\s \\|&nbsp;\\)+at:[^<]*<br>")
-(defvar shimbun-cnn-jp-content-end "<div class=\"box\">")
+  "<div[\t\n ]+class=\"topPhImg\">[\t\n ]*\
+\\|<div[\t\n ]class=\"topArtBox\">[\t\n ]*\
+\\|Web\\(?:\\s \\|&nbsp;\\)+posted\\(?:\\s \\|&nbsp;\\)+at:[^<]*<br>")
+(defvar shimbun-cnn-jp-content-end
+  "[\t\n ]*<div class=\"\\(?:txtPR\\|box\\)\">")
 (defvar shimbun-cnn-jp-expiration-days 14)
 
 (defvar shimbun-cnn-jp-group-alist
@@ -56,14 +59,11 @@
 
 (defvar shimbun-cnn-jp-x-face-alist
   '(("default" . "\
-Face: iVBORw0KGgoAAAANSUhEUgAAADAAAAAWAgMAAAD7mfc/AAAABGdBTUEAALGPC/xhBQAAAAx
- QTFRFtgEB4mlp9bGx/vT0/VCoMAAAAC90RVh0U29mdHdhcmUAWFYgVmVyc2lvbiAzLjEwYStGTG1
- hc2sgIFJldjogMTIvMjkvOTQbx6p8AAAA9ElEQVR42j3OMU7DQBAF0L8TxRviIg1IhCYUES0cYbM
- FNRROJFwQSioq6oxzAgspkTgCziHiI2xD78Y9RZBAsjwZS4hmvl7z/0Da+7RO5XchoYQEpJu51Em
- HFme7JJHPZBUYP1TsFvVq832tqMaI568v2/eRolwijp4ftw9WwXyxj8bp2y0pvBOJrF/PWEEkQiZ
- bu/xOYRXIyV1CEXe4Me78H6fGnXTodRgYR/gr6JPxxjEy3gtZmnlm/SDvJ2Q582HJCFNoffnkqyn
- ja+gQ2erKHwYlGlMUH/FhSE3EEAdg1KDXakqlZ9LCii6J5DB7CROp4iPbnmrk8JWgOgAAAAd0SU1
- FB9QGBAQGEAm9iVAAAAAASUVORK5CYII=")))
+Face: iVBORw0KGgoAAAANSUhEUgAAACMAAAAQAgMAAADhWS7JAAAADFBMVEW2AQHojY3xxsb////
+ LZAepAAAAmUlEQVQI12P4P0F86v6v8R8aGH4ySIXmXw3/4MDwQDQqKnraJCCrwYFNLHxqAJDlyBg
+ pGjZVoMCBgYX/r0hAI4sCkKX/l0WAkZEByKr/y8ICYdn/ZWEAMiCyQBZQzJX7L0uAI4uAA0MjAwN
+ LgSMviwPDhQAGlhJRPiDrg2howB4WeUcHhr8MDAz/GOQPMDD8X8LA9r+h/gEHAHPyLQOjNU7WAAA
+ AAElFTkSuQmCC")))
 
 (luna-define-method shimbun-groups ((shimbun shimbun-cnn-jp))
   (mapcar 'car shimbun-cnn-jp-group-alist))
@@ -75,62 +75,64 @@ Face: iVBORw0KGgoAAAANSUhEUgAAADAAAAAWAgMAAAD7mfc/AAAABGdBTUEAALGPC/xhBQAAAAx
 (luna-define-method shimbun-get-headers ((shimbun shimbun-cnn-jp)
 					 &optional range)
   (let ((case-fold-search t)
-	(beg (point-min)) (end (point-max))
-	headers)
-    (goto-char (point-min))
-    (when (re-search-forward
-	   "FULL STORY" nil t)
-      (setq beg (match-end 0)))
-    (when (re-search-forward
-	   "<!-- *ＣＮＮ *ラージタイル *[0-9]+\\*[0-9]+ *★? *ここから *-->"
-	   nil t)
-      (setq end (match-beginning 0)))
-    (save-excursion
-      (narrow-to-region beg end)
-      (goto-char (point-min))
-      (let (title url date id str)
-	(while (re-search-forward
-		"<a href=\"\\([^\"]*\\)\">\\([^<]*\\)</a>"
-		nil t)
-	  (setq title (match-string-no-properties 2))
-	  (setq str   (substring (match-string-no-properties 1) 1))
-	  (setq url   (shimbun-expand-url (concat shimbun-cnn-jp-url str)))
-	  (let ((year 0) (month 0) (day 0))
-	    (when (string-match
-		   "\\([^/]*\\)/\\([^0-9]*\\)\\([0-9][0-9][0-9][0-9]\\)\
-\\([0-9][0-9]\\)\\([0-9][0-9]\\)\\([0-9]*\\)"
-		   str)
-	      (setq year  (match-string-no-properties 3 str)
-		    month (match-string-no-properties 4 str)
-		    day   (match-string-no-properties 5 str)))
-	    (setq id (format "<%s%s%s%s%s%%%s@%s>"
-			     (match-string-no-properties 2 str)	; news provider
-			     year month day ; date
-			     (match-string-no-properties 6 str)	; number
-			     (match-string-no-properties 1 str)	; category
-			     shimbun-cnn-jp-top-level-domain)) ; domain
-	    (setq date (shimbun-make-date-string
-			(string-to-int year)
-			(string-to-int month)
-			(string-to-int day)))
-	    (push (shimbun-create-header
-		   0
-		   title
-		   (shimbun-from-address shimbun)
-		   date
-		   id "" 0 0 url)
-		  headers)))))
+	(from (shimbun-from-address shimbun))
+	year month day id ids headers)
+    (while (re-search-forward
+	    (eval-when-compile
+	      (concat "<a href=\"/"
+		      ;; 1. url
+		      "\\("
+		      ;; 2. category
+		      "\\([^/]+\\)"
+		      "/"
+		      ;; 3. news provider
+		      "\\([^./0-9]+\\)"
+		      ;; 4. year
+		      "\\(20[0-9][0-9]\\)"
+		      ;; 5. month
+		      "\\([01][0-9]\\)"
+		      ;; 6. day
+		      "\\([0-3][0-9]\\)"
+		      ;; 7. number
+		      "\\([0-9]+\\)"
+		      "\\.html\\)"
+		      "\">"
+		      ;; 8. title
+		      "\\([^>]+\\)"
+		      "</a>"))
+	    nil t)
+      (setq year (string-to-number (match-string 4))
+	    month (string-to-number (match-string 5))
+	    day (string-to-number (match-string 6))
+	    id (format "<%s%d%02d%02d%s%%%s@%s>"
+		       (match-string 3)
+		       year month day
+		       (match-string 7)
+		       (match-string 2)
+		       shimbun-cnn-jp-top-level-domain))
+      (unless (or (member id ids) ;; Avoid duplications.
+		  (shimbun-search-id shimbun id))
+	(push id ids)
+	(push (shimbun-create-header
+	       0
+	       (match-string 8)
+	       from
+	       (shimbun-make-date-string year month day)
+	       id "" 0 0
+	       (shimbun-expand-url (match-string 1) shimbun-cnn-jp-url))
+	      headers)))
     headers))
 
-;; date normalize
 (defun shimbun-cnn-jp-prepare-article (shimbun header)
-  "Prepare an article: adjusting a date header if there is a correct
-information available."
-  (let ((case-fold-search t))
+  "Prepare an article:
+ adjusting a date header if there is a correct information available;
+ move a photograph to the top."
+  (let ((case-fold-search t)
+	photo)
     (when (re-search-forward
 	   ">\\(20[0-9][0-9]\\).\\([01][0-9]\\).\\([0-3][0-9]\\)<br>\n\
-Web\\(\\s \\|&nbsp;\\)+posted\\(\\s \\|&nbsp;\\)+at:[^0-9]*\
-\\([0-9][0-9]:[0-9][0-9]\\)\\(\\s \\|&nbsp;\\)*\\([A-Z]+\\)<br>"
+Web\\(?:\\s \\|&nbsp;\\)+posted\\(?:\\s \\|&nbsp;\\)+at:[^0-9]*\
+\\([0-9][0-9]:[0-9][0-9]\\)\\(?:\\s \\|&nbsp;\\)*\\([A-Z]+\\)<br>"
 	   ;; <p class="date">2005.02.10<br>
 	   ;; Web&nbsp;posted&nbsp;at:&nbsp;
 	   ;; 10:23
@@ -142,8 +144,29 @@ Web\\(\\s \\|&nbsp;\\)+posted\\(\\s \\|&nbsp;\\)+at:[^0-9]*\
 	(string-to-number (match-string-no-properties 1))
 	(string-to-number (match-string-no-properties 2))
 	(string-to-number (match-string-no-properties 3))
-	(match-string-no-properties 6)
-	(match-string-no-properties 8)))
+	(match-string-no-properties 4)
+	(match-string-no-properties 5)))
+      (goto-char (point-min)))
+
+    (when (and (not (shimbun-prefer-text-plain-internal shimbun))
+	       (re-search-forward "<div[\t\n ]+class=\"ImgC\">[\t\n ]*\
+\\(<img[\t\n ]+[^>]+>\\)[\t\n ]*</div>\
+\\(?:[\t\n ]*<div[\t\n ]+class=\"pCaption\">[\t\n ]*\
+<p>\\([^<]+\\)</p>[\t\n ]*</div>\\)?"
+				  nil t)
+	       (progn
+		 (setq photo (if (match-beginning 2)
+				 (concat (match-string 1) "<br>\n"
+					 (match-string 2) "<br>\n")
+			       (concat (match-string 1) "<br>\n")))
+		 (goto-char (point-min))
+		 (re-search-forward (shimbun-content-start shimbun) nil t)))
+      (if (looking-at "[\t\n ]*\\(-[\t\n ]+[A-Z]+\\(?:/[A-Z]+\\)*\\)\
+\[\t\n ]*</p>[\t\n ]*<p>")
+	  (replace-match (concat "\\1<br>\n" photo "<p>"))
+	(when (looking-at "[\t\n ]+")
+	  (delete-region (match-beginning 0) (match-end 0)))
+	(insert photo))
       (goto-char (point-min)))))
 
 (luna-define-method shimbun-make-contents :before ((shimbun shimbun-cnn-jp)

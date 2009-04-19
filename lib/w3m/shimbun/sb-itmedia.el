@@ -1,9 +1,11 @@
 ;;; sb-itmedia.el --- shimbun backend for ITmedia -*- coding: iso-2022-7bit -*-
 
-;; Copyright (C) 2004, 2005 Yuuichi Teranishi <teranisi@gohome.org>
+;; Copyright (C) 2004, 2005, 2006, 2007, 2008, 2009
+;; Yuuichi Teranishi <teranisi@gohome.org>
 
 ;; Author: TSUCHIYA Masatoshi <tsuchiya@namazu.org>,
 ;;         Yuuichi Teranishi  <teranisi@gohome.org>
+;;         ARISAWA Akihiro    <ari@mbf.sphere.ne.jp>
 ;; Keywords: news
 
 ;; This file is a part of shimbun.
@@ -19,9 +21,9 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program; if not, you can either send email to this
-;; program's maintainer or write to: The Free Software Foundation,
-;; Inc.; 59 Temple Place, Suite 330; Boston, MA 02111-1307, USA.
+;; along with this program; see the file COPYING.  If not, write to
+;; the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+;; Boston, MA 02110-1301, USA.
 
 ;;; Commentary:
 
@@ -34,218 +36,271 @@
   (require 'cl))
 
 (require 'shimbun)
+(require 'sb-rss)
+(require 'sb-multi)
 
-(luna-define-class shimbun-itmedia (shimbun) ())
-
-(defvar shimbun-itmedia-url "http://www.itmedia.co.jp/")
+(luna-define-class shimbun-itmedia (shimbun-multi shimbun-rss) ())
 
 (defvar shimbun-itmedia-group-alist
-  (let ((template (concat "<a href=\""
-			  "\\(" (regexp-quote shimbun-itmedia-url) "\\|/\\)"
-			  "\\(\\(%s\\)/\\([0-9][0-9]\\)\\([0-9][0-9]\\)\
-/\\([0-9][0-9]\\)/\\([^\\.\">]+\\)\\.html\\)[^>]*>")))
-    `(("anchordesk" "anchordesk"
-       ,(format template "anchordesk/articles")
-       "［[^ ]* \\([0-9]+:[0-9]+\\)］")
-      ("bursts" "news/bursts"
-       ,(format template "enterprise/articles\\|news/articles")
-       "［[^ ]* \\([0-9]+:[0-9]+\\)］")
-      ("business" "news/business"
-       ,(format template "news/articles")
-       nil)
-      ("enterprise" "enterprise"
-       ,(format template "enterprise/articles")
-       "［[^ ]* \\([0-9]+:[0-9]+\\)］")
-      ("games" "games/news"
-       ,(format template "games/articles")
-       nil)
-      ("lifestyle" "lifestyle"
-       ,(format template "lifestyle/articles")
-       nil)
-      ("mobile" "mobile/news"
-       ,(format template "mobile/articles")
-       nil)
-      ("news" "news/past"
-       ,(format template "news/articles")
-       "(\\([0-9]+:[0-9]+\\))")
-      ("pcupdate" "pcupdate/news"
-       ,(format template "pcupdate/articles")
-       nil)
-      ("technology" "news/technology"
-       ,(format template "news/articles")
-       nil))))
+  `(,@(mapcar
+       (lambda (group)
+	 (list (concat "news." group) (concat "news_" group)))
+       '("bursts" "domestic" "foreign" "products" "technology" "web20"
+	 "nettopics" "society" "security" "industry" "research" "sp_amd"))
+    ("anchordesk" "anchordesk")
+    ("bizid" "bizid")
+    ("enterprise" "enterprise")
+    ,@(mapcar
+       (lambda (group)
+	 (list (concat "+D." group) group))
+       '("plusd" "mobile" "pcupdate" "lifestyle" "games" "docomo" "au_kddi"
+	 "vodafone" "shopping"))
+    ,@(mapcar
+       (lambda (def)
+	 (list (concat "+D.lifestyle.column." (car def))
+	       nil (car def) (cdr def)))
+       '(("asakura" . "麻倉怜士")
+	 ("takemura" . "竹村譲")
+	 ("kodera" . "小寺信良")
+	 ("honda" . "本田雅一")
+	 ("nishi" . "西正")
+	 ("kobayashi" . "こばやしゆたか")))))
 
-(defvar shimbun-itmedia-server-name "ITmedia")
-(defvar shimbun-itmedia-from-address "webmaster@itmedia.co.jp")
 (defvar shimbun-itmedia-x-face-alist
-  '(("default" . "X-Face: %JzFW&0lP]xKGl{Bk3\\`yC0zZp|!;\\KT9'rqE2AIk\
+  '(("\\+D" . "X-Face: #Ur~tK`JhZFFHPEVGKEi`MS{55^~&^0KUuZ;]-@WQ[8\
+@,Ex'EeAAE}6xF<K#]pULF@5r24J
+ |8/oP)(lCAzF0}.C@@}!k8!Qiz6b{]V")
+    ("default" . "X-Face: %JzFW&0lP]xKGl{Bk3\\`yC0zZp|!;\\KT9'rqE2AIk\
 R[TQ[*i0d##D=I3|g`2yr@sc<pK1SB
  j`}1YEnKc;U0:^#LQB*})Q}y=45<lIE4q<gZ88e2qS8a@Tys6S")))
+
+(defvar shimbun-itmedia-content-start
+  "<div class=\"body-rap\">\\|<div id=\"wrIcon\">")
+(defvar shimbun-itmedia-content-end "<div class=\"credit-rap\">")
+
+(defvar shimbun-itmedia-retry-fetching 1)
+(defvar shimbun-itmedia-ignored-subject "^PR:")
+
+(luna-define-method initialize-instance :after ((shimbun shimbun-itmedia)
+						&rest init-args)
+  (shimbun-rss-initialize-ignored-subject shimbun))
 
 (luna-define-method shimbun-groups ((shimbun shimbun-itmedia))
   (mapcar 'car shimbun-itmedia-group-alist))
 
+(luna-define-method shimbun-from-address ((shimbun shimbun-itmedia))
+  (let ((group (shimbun-current-group-internal shimbun)))
+    (format "ITmedia (%s)"
+	    (or (nth 3 (assoc group shimbun-itmedia-group-alist)) group))))
+
 (luna-define-method shimbun-index-url ((shimbun shimbun-itmedia))
-  (concat
-   (shimbun-url-internal shimbun)
-   (nth 1 (assoc (shimbun-current-group-internal shimbun)
-		 shimbun-itmedia-group-alist))
-   "/"))
+  (let* ((group (shimbun-current-group-internal shimbun))
+	 (name (nth 1 (assoc group shimbun-itmedia-group-alist))))
+    (if name
+	(format "http://rss.itmedia.co.jp/rss/2.0/%s.xml" name)
+      (format "http://plusd.itmedia.co.jp/lifestyle/column/%s.html"
+	      (nth 2 (assoc group shimbun-itmedia-group-alist))))))
 
-(luna-define-method shimbun-get-headers ((shimbun shimbun-itmedia)
-					 &optional range)
-;;;<DEBUG>
-;;  (shimbun-itmedia-get-headers shimbun))
-;;
-;;(defun shimbun-itmedia-get-headers (shimbun)
-;;;</DEBUG>
-  (let* ((case-fold-search t)
-	 (group (shimbun-current-group-internal shimbun))
-	 (url-regexp (nth 2 (assoc group shimbun-itmedia-group-alist)))
-	 (time-regexp (nth 3 (assoc group shimbun-itmedia-group-alist)))
-	 (table '(("：" ":") ("［" "[") ("］" "]")))
-	 next headers)
-    (while (search-forward "\r" nil t)
-      (replace-match "\n"))
-    (goto-char (point-min))
-    (while (if next
-	       (progn
-		 (set-match-data next)
-		 (setq next nil)
-		 (goto-char (match-end 0)))
-	     (re-search-forward url-regexp nil t))
-      (unless (string= "index" (match-string 7))
-	(let ((url (match-string 2))
-	      (year (+ 2000 (string-to-number (match-string 4))))
-	      (month (string-to-number (match-string 5)))
-	      (day (string-to-number (match-string 6)))
-	      (id (format "<%s%s%s%s%%%s>"
-			  (match-string 4)
-			  (match-string 5)
-			  (match-string 6)
-			  (match-string 7)
-			  group))
-	      (subject (mapconcat
-			(lambda (s)
-			  (dolist (e table s)
-			    (setq s (apply 'shimbun-replace-in-string s e))))
-			(delete
-			 ""
-			 (split-string
-			  (buffer-substring (match-end 0)
-					    (progn
-					      (search-forward "</A>" nil t)
-					      (point)))
-			  "[\t\n ]*<[^>]+>[\t\n ]*\\|[\t\n 　]+"))
-			" "))
-	      time)
-	  (unless (zerop (length subject))
-	    (setq subject (shimbun-replace-in-string
-			   subject " ?\\([“”（）「」]\\) ?" "\\1"))
-	    (when time-regexp
-	      (setq next (point)
-		    next (when (re-search-forward url-regexp nil t)
-			   (goto-char next)
-			   (match-data))
-		    time (when (re-search-forward time-regexp (car next) t)
-			   (match-string 1))))
-	    (push (shimbun-create-header
-		   0 subject
-		   (shimbun-from-address shimbun)
-		   (shimbun-make-date-string year month day time)
-		   id  "" 0 0
-		   (concat shimbun-itmedia-url url))
-		  headers)))))
-    (shimbun-sort-headers headers)))
+(luna-define-method shimbun-headers :around ((shimbun shimbun-itmedia)
+					     &optional range)
+  (if (string-match "\\.xml\\'" (shimbun-index-url shimbun))
+      ;; Use the function defined in sb-rss.el.
+      (luna-call-next-method)
+    ;; Use the default function defined in shimbun.el.
+    (funcall (intern "shimbun-headers"
+		     (luna-class-obarray (luna-find-class 'shimbun)))
+	     shimbun range)))
 
-(defun shimbun-itmedia-clean-text-page ()
-  (let ((case-fold-search t) (start))
-    (goto-char (point-min))
-    (when (and (search-forward "<!--BODY-->" nil t)
-	       (setq start (match-end 0))
-	       (re-search-forward "<!--BODY ?END-->" nil t))
-      (delete-region (match-beginning 0) (point-max))
-      (delete-region (point-min) start)
-      ;; Remove anchors to both the next page and the previous page.
-      ;; These anchors are inserted into the head and the tail of the
-      ;; article body.
-      (skip-chars-backward " \t\r\f\n")
-      (forward-line 0)
-      (when (looking-at "<P ALIGN=\"CENTER\"><[AB]")
-	(delete-region (point) (point-max)))
+(luna-define-method shimbun-get-headers :around ((shimbun shimbun-itmedia)
+						 &optional range)
+  (if (string-match "\\.xml\\'" (shimbun-index-url shimbun))
+      (luna-call-next-method)
+    (let ((group (nth 2 (assoc (shimbun-current-group-internal shimbun)
+			       shimbun-itmedia-group-alist)))
+	  (from (shimbun-from-address shimbun))
+	  headers)
       (goto-char (point-min))
-      (skip-chars-forward " \t\r\f\n")
-      (when (looking-at "<P ALIGN=\"CENTER\"><[AB]")
-	(delete-region (point-min) (line-end-position))))
-    (shimbun-remove-tags "<!-- AD START -->" "<!-- AD END -->")
-    (shimbun-remove-tags "\
+      (while (re-search-forward "<a[\t\n ]+href=\"\
+\\(?:[^\"]+\\)?\\(/lifestyle/articles/\\([0-9][0-9]\\)\\([01][0-9]\\)/\
+\\([0-3][0-9]\\)/news\\([0-9]+\\)\\.html\\)\"[\t\n ]*>[\t\n ]*\\([^<]+\\)"
+				nil t)
+	(push (shimbun-create-header
+	       0 (match-string 6) from
+	       (shimbun-make-date-string
+		(+ (string-to-number (match-string 2)) 2000)
+		(string-to-number (match-string 3))
+		(string-to-number (match-string 4)))
+	       (concat
+		"<20" (match-string 2) (match-string 3) (match-string 4)
+		"." (match-string 5) "." group
+		".column.lifestyle@itmedia.shimbun.namazu.org>")
+	       "" 0 0
+	       (concat "http://plusd.itmedia.co.jp" (match-string 1)))
+	      headers))
+      headers)))
+
+(luna-define-method shimbun-multi-next-url ((shimbun shimbun-itmedia)
+					    header url)
+  (goto-char (point-min))
+  (when (re-search-forward
+	 "<b><a href=\"\\([^\"]+\\)\">次のページ</a></b>\
+\\|<span id=\"next\"><a href=\"\\([^\"]+\\)\">次のページへ</a></span>" nil t)
+    (let ((next (or (match-string 1) (match-string 2))))
+      (prog1
+	  (shimbun-expand-url next url)
+	;; Remove navigation button.
+	(goto-char (point-min))
+	(when (and (re-search-forward "\
+<div[\t\n ]+\\(?:[^\t\n >]+[\t\n ]+\\)*id=\"notice\""
+				      nil t)
+		   (shimbun-end-of-tag "div" t)
+		   (save-match-data
+		     (re-search-backward (concat "[\t\n ]href=\""
+						 (regexp-quote next)
+						 "\"")
+					 (match-beginning 0) t)))
+	  (replace-match "\n"))))))
+
+(luna-define-method shimbun-multi-clear-contents ((shimbun shimbun-itmedia)
+						  header
+						  has-previous-page
+						  has-next-page)
+  (let (credit)
+    (when (and (not has-previous-page)
+	       (progn
+		 (goto-char (point-min))
+		 (re-search-forward "<!--■クレジット-->[\t\n ]*" nil t))
+	       (looking-at "<p\\( [^\n>]+>[^\n]+</\\)p>"))
+      (setq credit (match-string 1))
+      (when (string-match "<b>\\[ITmedia\\]</b>" credit)
+	(setq credit nil)))
+    (when (shimbun-clear-contents shimbun header)
+      (goto-char (point-min))
+      (when credit
+	(insert "<div" credit "div>\n"))
+      ;; Remove navigation buttons.
+      (while (and (re-search-forward "\
+<div[\t\n ]+\\(?:[^\t\n >]+[\t\n ]+\\)*class=\"ctrl\""
+				     nil t)
+		  (shimbun-end-of-tag "div" t)
+		  (save-match-data
+		    (re-search-backward "[次前]のページへ"
+					(match-beginning 0) t)))
+	(replace-match "\n"))
+      (goto-char (point-min))
+      (when has-previous-page
+	(insert "&#012;") ;; ^L
+	;; Remove tags that likely cause a newline preceding a page.
+	(when (and (looking-at "[\t\n ]*<\\(h[0-9]+\\|p\\)[\t\n >]")
+		   (shimbun-end-of-tag (match-string 1) t))
+	  (replace-match "\n\\3\n")))
+      t)))
+
+(luna-define-method shimbun-clear-contents :around ((shimbun shimbun-itmedia)
+						    header)
+  (or (luna-call-next-method)
+      (prog1
+	  (let ((case-fold-search t)
+		icon start)
+	    (goto-char (point-min))
+	    (when (and (re-search-forward "<div\\(?:[\t\n ]+[^\t\n >]+\\)*\
+\[\t\n ]+class=\"article-icon\""
+					  nil t)
+		       (shimbun-end-of-tag "div"))
+	      (setq icon (match-string 0)))
+	    (goto-char (point-min))
+	    (when (and (search-forward "<!--BODY-->" nil t)
+		       (progn
+			 (setq start (match-end 0))
+			 (when (and (re-search-backward "<h[0-9]>[^<]+</h[0-9]>"
+							nil t)
+				    (progn
+				      (goto-char (match-end 0))
+				      (not (re-search-forward "<h[0-9]>" start t))))
+			   (delete-region (match-end 0) start)
+			   (setq start (match-beginning 0)))
+			 (re-search-forward "<!--BODY ?END-->" nil t)))
+	      (delete-region (match-beginning 0) (point-max))
+	      (delete-region (point-min) start)
+	      ;; Remove anchors to both the next page and the previous page.
+	      ;; These anchors are inserted into the head and the tail of the
+	      ;; article body.
+	      (skip-chars-backward " \t\r\f\n")
+	      (forward-line 0)
+	      (when (looking-at "<P ALIGN=\"CENTER\"><[AB]")
+		(delete-region (point) (point-max)))
+	      (goto-char (point-min))
+	      (skip-chars-forward " \t\r\f\n")
+	      (when (looking-at "<P ALIGN=\"CENTER\"><[AB]")
+		(delete-region (point-min) (point-at-eol)))
+	      (when icon
+		(goto-char (point-min))
+		(insert icon "\n"))
+	      t))
+	(shimbun-remove-tags "<!-- AD START -->" "<!-- AD END -->")
+	(shimbun-remove-tags "\
 <IMG [^>]*SRC=\"http:/[^\"]*/\\(ad\\.itmedia\\.co\\.jp\\|\
 a1100\\.g\\.akamai\\.net\\)/[^>]+>")
-    (shimbun-remove-tags "\
+	(shimbun-remove-tags "\
 <A [^>]*HREF=\"http:/[^\"]*/\\(ad\\.itmedia\\.co\\.jp\\|\
-a1100\\.g\\.akamai\\.net\\)/[^>]+>[^<]*</A>")))
+a1100\\.g\\.akamai\\.net\\)/[^>]+>[^<]*</A>")
 
-(defun shimbun-itmedia-retrieve-next-pages (shimbun base-cid url
-						    &optional images)
-  (let ((case-fold-search t) (next))
-    (goto-char (point-min))
-    (when (re-search-forward
-	   "<b><a href=\"\\([^\"]+\\)\">次のページ</a></b>" nil t)
-      (setq next (shimbun-expand-url (match-string 1) url)))
-    (shimbun-itmedia-clean-text-page)
-    (goto-char (point-min))
-    (insert "<html>\n<head>\n<base href=\"" url "\">\n</head>\n<body>\n")
-    (goto-char (point-max))
-    (insert "\n</body>\n</html>\n")
-    (when shimbun-encapsulate-images
-      (setq images (shimbun-mime-replace-image-tags base-cid url images)))
-    (let ((body (shimbun-make-text-entity "text/html" (buffer-string)))
-	  (result (when next
-		    (with-temp-buffer
-		      (shimbun-fetch-url shimbun next)
-		      (shimbun-itmedia-retrieve-next-pages shimbun base-cid
-							   next images)))))
-      (list (cons body (car result))
-	    (or (nth 1 result) images)))))
+	;; Insert line-break after images.
+	(goto-char (point-min))
+	(let (start md)
+	  (while (re-search-forward
+		  "\\(<img[\t\n ]+[^>]+>\\(?:[\t\n ]*<[^>]+>\\)*\\)[\t\n ]*"
+		  nil t)
+	    (when (or
+		   ;; Look forward for </a>.
+		   (progn
+		     (setq start (point)
+			   md (match-data))
+		     (and (re-search-forward "<a[\t\n ]+\\|\\(</a>\\)[\t\n ]*"
+					     nil t)
+			  (or (match-beginning 1)
+			      (progn
+				(goto-char start)
+				(set-match-data md)
+				nil))))
+		   ;; Look backward for </foo>.
+		   (re-search-backward "\\(</[^>]+>\\)[\t\n ]*"
+				       (match-beginning 1) t))
+	      (goto-char (match-end 0)))
+	    (unless
+		;; Check if there's a tag that is likely to cause the line-break.
+		(looking-at "\\(?:<![^>]+>[\t\n ]*\\)*\
+<\\(?:br\\|div\\|h[0-9]+\\|p\\)\\(?:[\t\n ]*>\\|[\t\n ]\\)")
+	      (replace-match "\\1<br>\n"))))
 
-(luna-define-method shimbun-make-contents ((shimbun shimbun-itmedia) header)
-  (let ((case-fold-search t))
-    (when (re-search-forward "\\([0-9]+\\)/\\([0-9]+\\)/\\([0-9]+\\) \
-\\([0-9]+:[0-9]+\\) 更新" nil t)
-      (shimbun-header-set-date
-       header
-       (shimbun-make-date-string
-	(string-to-number (match-string 1))
-	(string-to-number (match-string 2))
-	(string-to-number (match-string 3))
-	(match-string 4))))
-    (let ((base-cid (shimbun-header-id header)))
-      (when (string-match "\\`<\\([^>]+\\)>\\'" base-cid)
-	(setq base-cid (match-string 1 base-cid)))
-      (let (body)
-	(multiple-value-bind (texts images)
-	    (shimbun-itmedia-retrieve-next-pages shimbun base-cid
-						 (shimbun-header-xref header))
-	  (erase-buffer)
-	  (if (= (length texts) 1)
-	      (setq body (car texts))
-	    (setq body (shimbun-make-multipart-entity))
-	    (let ((i 0))
-	      (dolist (text texts)
-		(setf (shimbun-entity-cid text)
-		      (format "shimbun.%d.%s" (incf i) base-cid))))
-	    (apply 'shimbun-entity-add-child body texts))
-	  (when images
-	    (setf (shimbun-entity-cid body) (concat "shimbun.0." base-cid))
-	    (let ((new (shimbun-make-multipart-entity)))
-	      (shimbun-entity-add-child new body)
-	      (apply 'shimbun-entity-add-child new
-		     (mapcar 'cdr (nreverse images)))
-	      (setq body new))))
-	(shimbun-header-insert shimbun header)
-	(insert "MIME-Version: 1.0\n")
-	(shimbun-entity-insert body)))
-    (buffer-string)))
+	(let ((hankaku (shimbun-japanese-hankaku shimbun)))
+	  (when (and hankaku (not (memq hankaku '(header subject))))
+	    (shimbun-japanese-hankaku-buffer t))))))
+
+(luna-define-method shimbun-make-contents :before ((shimbun shimbun-itmedia)
+						   header)
+  (when (re-search-forward "\\([0-9]+\\)年\\([0-9]+\\)月\\([0-9]+\\)日 \
+\\([0-9]+\\)時\\([0-9]+\\)分 更新" nil t)
+    (shimbun-header-set-date
+     header
+     (shimbun-make-date-string
+      (string-to-number (match-string 1))
+      (string-to-number (match-string 2))
+      (string-to-number (match-string 3))
+      (concat (match-string 4) ":" (match-string 5))))))
+
+(luna-define-method shimbun-footer :around ((shimbun shimbun-itmedia)
+					    header &optional html)
+  (if html
+      (concat "<div align=\"left\">\n--&nbsp;<br>\n\
+この記事の諸権利は&nbsp;ITmedia&nbsp;または情報の提供元に帰属します。<br>
+原物は<a href=\""
+	      (shimbun-article-base-url shimbun header)
+	      "\"><u>ここ</u></a>で公開されています。\n</div>\n")
+    (concat "-- \n\
+この記事の諸権利は ITmedia または情報の提供元に帰属します。\n\
+原物は以下の場所で公開されています:\n"
+	    (shimbun-article-base-url shimbun header) "\n")))
 
 (provide 'sb-itmedia)
 
