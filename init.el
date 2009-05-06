@@ -7,7 +7,6 @@
 (load "~/.emacs.d/utils.el")
 (load "~/.emacs.d/look&feel.el")
 (load "~/.emacs.d/major-modes.el")
-(load "~/.emacs.d/auctex-setup.el")
 
 (custom-set-variables
   ;; custom-set-variables was added by Custom.
