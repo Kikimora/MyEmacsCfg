@@ -1,3 +1,5 @@
+(shell-command "source ~/.env_vars")
+
 (add-to-list 'load-path "~/.emacs.d/lib/")
 (add-to-list 'load-path "~/.emacs.d/lib/color-theme")
 

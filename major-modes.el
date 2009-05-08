@@ -20,9 +20,9 @@
     ;;[myObject <'methodWithArg:'> arg]
     ("\\<\\w+:" . font-lock-function-name-face)
     ;;[NSFileManager <'defaultManager'>]
-    ("\\[\\w+ \\(\\w+\\)\\]" . (1  font-lock-function-name-face))
+    ("\\[\\(?:\\w\\.?\\)+ \\(\\w+\\)\\]" . (1  font-lock-function-name-face))
     ;;[[NSFileManager defaultManager] <'someMethod'>]
-    ("\\] \\(\\w+\\)" . (1  font-lock-function-name-face)))) 
+    ("\\] \\(\\w+\\)" . (1  font-lock-function-name-face))))
 
 (defun find-one-of (candidates name)
   (if candidates
