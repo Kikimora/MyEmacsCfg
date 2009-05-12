@@ -1,5 +1,5 @@
 ;;DocSet documentation lookup and hippie expand completion function
-(defvar dsv-docset-path "/Developer/Platforms/iPhoneOS.platform/Developer/Documentation/DocSets/com.apple.adc.documentation.AppleiPhone2_2.iPhoneLibrary.docset/Contents/Resources/docSet.dsidx")
+(defvar dsv-docset-path "/Developer/Platforms/iPhoneOS.platform/Developer/Documentation/DocSets/com.apple.adc.documentation.AppleiPhone3_0.iPhoneLibrary.docset/Contents/Resources/docSet.dsidx")
 
 (defvar dsv-program-path "~/.emacs.d/tools/docsetview")
 

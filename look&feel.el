@@ -16,8 +16,7 @@
 ;;key bindings
 (global-set-key (kbd "M-z") 'undo)
 (setq mac-option-modifier 'meta)
-(global-set-key "\C-x?" 'comment-region)
-(global-set-key "\C-x\M-/" 'uncomment-region)
+(global-set-key "\C-x?" 'comment-or-uncomment-region)
 (global-set-key "\C-x\C-b" 'electric-buffer-list)
 (global-set-key "\C-x\C-m" 'compile)
 (global-set-key "\M-/" 'hippie-expand)
@@ -88,12 +87,6 @@ new buffer."
   (local-set-key (kbd "RET")     'dired-find-alternate-file))
 
 (add-hook 'dired-mode-hook 'th-dired-mode-init)
-
-;; (add-hook 'dired-mode-hook 
-;; 	  (lambda () 
-;; 	    (local-set-key dired-mode-map (kbd "RET") 'dired-find-alternate-file) ; was dired-advertised-find-file 
-;; 	    (local-set-key dired-mode-map (kbd "^") (lambda () (interactive) (find-alternate-file ".."))) ; was dired-up-directory
-;; 	    ))
 
 (put 'dired-find-alternate-file 'disabled nil)
 ;; List directories first in dired
