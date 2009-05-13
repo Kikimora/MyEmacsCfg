@@ -58,7 +58,10 @@
   (normal-erase-is-backspace-mode 1))
 
 ;; find file at point
-(ffap-bindings)
+(require 'ffap)
+(setq ffap-require-prefix t)
+;; browse urls at point via w3m
+(setq ffap-url-fetcher 'w3m-browse-url)
 
 ;; Enable downcase-region and upcase-region commands
 (put 'downcase-region 'disabled nil)
@@ -118,6 +121,7 @@ new buffer."
 ;;ido mode
 (require 'ido)
 (ido-mode t)
+(setq ido-enable-flex-matching t)
 
 (defun date (arg)
   (interactive "P")
@@ -145,3 +149,13 @@ new buffer."
 (require 'yasnippet)
 (yas/initialize)
 (yas/load-directory "~/.emacs.d/snippets")
+
+(global-set-key (kbd "<C-right>") 'enlarge-window-horizontally)
+(global-set-key (kbd "<C-left>") 'shrink-window-horizontally)
+(global-set-key (kbd "<C-down>") 'enlarge-window)
+(global-set-key (kbd "<C-up>") 'shrink-window)
+
+(setq backup-directory-alist
+      (cons '("." . "~/.emacs-backups") backup-directory-alist))
+
+(setq visible-bell t)

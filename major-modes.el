@@ -86,3 +86,17 @@
 (load "~/.emacs.d/lib/haskell-mode/haskell-site-file")
 (add-hook 'haskell-mode-hook 'turn-on-haskell-doc-mode)
 (add-hook 'haskell-mode-hook 'turn-on-haskell-indent)
+
+
+(defun my-ido-find-tag ()
+  "Find a tag using ido"
+  (interactive)
+  (tags-completion-table)
+  (let (tag-names)
+    (mapc (lambda (x)
+	    (unless (integerp x)
+	      (push (prin1-to-string x t) tag-names)))
+	  tags-completion-table)
+    (find-tag (ido-completing-read "Tag: " tag-names))))
+
+(global-set-key "\M-." 'my-ido-find-tag)
