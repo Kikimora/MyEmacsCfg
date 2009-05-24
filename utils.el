@@ -1,5 +1,3 @@
-
-
 (defun string-trim (bag s)
   "Returns a substring of the string specified by S that has had every
 character in BAG removed from the beginning and end.  S must be a string or a

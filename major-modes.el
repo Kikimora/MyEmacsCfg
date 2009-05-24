@@ -1,18 +1,24 @@
-(load "~/.emacs.d/docsetview.el")
-(load "~/.emacs.d/lib/objc-c-mode.el")
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;js2 mode
 (add-to-list 'load-path "~/.emacs.d/lib/js2/build")
 (autoload 'js2-mode "js2" nil t)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;c mode + customizations + various helper minor modes
+(load "~/.emacs.d/docsetview.el")
+(autoload 'objc-mode "objc-c-mode" nil t)
 
 (autoload 'csharp-mode "csharp-mode" nil t)
 (autoload 'php-mode "php-mode" nil t)
 (require 'html-script)
+(require 'etags-select)
 
 (add-to-list 'auto-mode-alist '("\\.js$" . js2-mode))
 (add-to-list 'auto-mode-alist '("\\.h$" . objc-mode))
 (add-to-list 'auto-mode-alist '("\\.m$" . objc-mode))
 (add-to-list 'auto-mode-alist '("\\.cs$" . csharp-mode))
 (add-to-list 'auto-mode-alist '("\\.php$" . html-mode))
-
 
 (font-lock-add-keywords 'objc-mode
     ;;fontify Objc 2.0 keywords
@@ -81,22 +87,50 @@
   (interactive)
   (let ((project (read-from-minibuffer "Project directory: " default-directory)))
     (setenv "PROJ_PATH" project)))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;haskell mode
 (load "~/.emacs.d/lib/haskell-mode/haskell-site-file")
 (add-hook 'haskell-mode-hook 'turn-on-haskell-doc-mode)
 (add-hook 'haskell-mode-hook 'turn-on-haskell-indent)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Load `dired' itself, with `tramp' extension
+(require 'dired)
+(require 'dired-x)
 
-(defun my-ido-find-tag ()
-  "Find a tag using ido"
-  (interactive)
-  (tags-completion-table)
-  (let (tag-names)
-    (mapc (lambda (x)
-	    (unless (integerp x)
-	      (push (prin1-to-string x t) tag-names)))
-	  tags-completion-table)
-    (find-tag (ido-completing-read "Tag: " tag-names))))
+(defun th-dired-up-directory () 
+  "Go up one directory and don't create a new dired buffer but 
+reuse the current one." 
+  (interactive) 
+  (find-alternate-file "..")) 
 
-(global-set-key "\M-." 'my-ido-find-tag)
+(defun th-dired-find-file () 
+  "Find directory reusing the current buffer and file creating a 
+new buffer." 
+  (interactive) 
+  (if (file-directory-p (dired-get-file-for-visit)) 
+      (dired-find-alternate-file) 
+    (dired-find-file)))
+
+(defun th-dired-mode-init () 
+  (local-set-key (kbd "^")       'th-dired-up-directory) 
+  (local-set-key (kbd "RET")     'dired-find-alternate-file))
+
+(add-hook 'dired-mode-hook 'th-dired-mode-init)
+
+(put 'dired-find-alternate-file 'disabled nil)
+;; List directories first in dired
+(require 'ls-lisp)
+;; Make tramp's backup directories the same as the normal ones
+(require 'tramp)
+(setq tramp-backup-directory-alist backup-directory-alist)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;w3m
+(setq w3m-command "/opt/local/bin/w3m")
+(require 'w3m)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
