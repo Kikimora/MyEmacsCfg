@@ -411,9 +411,10 @@ This can be used in `ack-root-directory-functions'."
   "Regular expressions recently searched for with `ack'.")
 
 (defsubst ack-read (regexp)
-  (read-from-minibuffer (if regexp "ack pattern: " "ack literal search: ")
-                        nil nil nil
-                        (if regexp 'ack-regexp-history 'ack-literal-history)))
+  (let ((user-input (read-from-minibuffer (if regexp "ack pattern: " "ack literal search: ")
+					  nil nil nil
+					  (if regexp 'ack-regexp-history 'ack-literal-history))))
+    (if (string-equal "" user-input) (thing-at-point 'symbol) user-input)))
 
 (defun ack-read-dir ()
   (let ((dir (run-hook-with-args-until-success 'ack-root-directory-functions)))
