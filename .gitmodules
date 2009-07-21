@@ -1,0 +1,15 @@
+[submodule "lib/babel"]
+	path = lib/babel
+	url = git://github.com/juergenhoetzel/babel.git
+[submodule "lib/magit"]
+	path = lib/magit
+	url = git://gitorious.org/magit/mainline.git
+[submodule "lib/clojure-mode"]
+	path = lib/clojure-mode
+	url = git://github.com/jochu/clojure-mode.git
+[submodule "lib/slime"]
+	path = lib/slime
+	url = git://git.boinkor.net/slime.git
+[submodule "lib/swank-clojure"]
+	path = lib/swank-clojure
+	url = git://github.com/jochu/swank-clojure.git

@@ -1,0 +1,2 @@
+#!/bin/sh
+java -cp "/opt/local/share/java/clojure/lib/clojure.jar:/Users/averbin/.emacs.d/lib/swank-clojure/:$CLOJURE_EXTRA_CP" -Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=5005 clojure.lang.Repl ~/.emacs.d/tools/user.clj

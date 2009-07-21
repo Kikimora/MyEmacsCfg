@@ -26,9 +26,6 @@
 (require 'ido)
 (ido-mode 'both)
 
-(add-to-list 'load-path "~/.emacs.d/lib/git-emacs")
-(require 'git-emacs)
-
 (require 'smex)
 (eval-after-load "init.el" '(smex-initialize))
 

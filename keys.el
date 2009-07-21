@@ -32,3 +32,6 @@
 
 (global-set-key "\M-?" 'etags-select-find-tag-at-point)
 (global-set-key "\M-." 'etags-select-find-tag)
+
+;;move between buffers with S-<arrow>
+(windmove-default-keybindings)

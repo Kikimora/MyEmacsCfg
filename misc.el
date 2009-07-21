@@ -50,3 +50,23 @@
   kept-old-versions 5
   delete-old-versions t)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; babel
+(autoload 'babel "babel"
+  "Use a web translation service to translate the message MSG." t)
+(autoload 'babel-region "babel"
+  "Use a web translation service to translate the current region." t)
+(autoload 'babel-as-string "babel"
+  "Use a web translation service to translate MSG, returning a string." t)
+(autoload 'babel-buffer "babel"
+  "Use a web translation service to translate the current buffer." t)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;auto rename buffers with same file names
+(require 'uniquify)
+(setq uniquify-buffer-name-style 'forward)
+(setq uniquify-separator "/")
+(setq uniquify-after-kill-buffer-p t)
+(setq uniquify-ignore-buffers-re "^\\*")

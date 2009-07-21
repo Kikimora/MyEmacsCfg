@@ -41,11 +41,11 @@
 (defun c-switch-to-header ()
   "Switch to the header file from source file."
   (interactive)
-  (when (string-match "\\([a-zA-Z0-9\-\_\/]+\\)\\.\\(.*?\\)" (buffer-name))
-    (let ((filename (buffer-file-name)))
-      (if (string-match ".*\\.\\(h\\|hxx\\|hpp\\)$" (buffer-name))
-	  (find-one-of (list "c" "m" "mm" "c++" "cpp" "cxx") (buffer-name))
-	(find-one-of (list "h" "hxx" "hpp") (buffer-name))))))
+  (let ((file-name (buffer-file-name)))
+    (when (string-match "\\([a-zA-Z0-9\-\_\/]+\\)\\.\\(.*?\\)" file-name)
+      (if (string-match ".*\\.\\(h\\|hxx\\|hpp\\)$" file-name)
+	  (find-one-of (list "c" "m" "mm" "c++" "cpp" "cxx") file-name)
+	  (find-one-of (list "h" "hxx" "hpp") file-name)))))
 
 (defun my-c-mode-common-hook ()
   (setq compilation-window-height 10)
@@ -134,3 +134,65 @@ new buffer."
 (setq w3m-command "/opt/local/bin/w3m")
 (require 'w3m)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; magit
+(autoload 'magit-status "magit" nil t)
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; clojure-mode
+(require 'clojure-mode)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; swank-clojure
+(require 'swank-clojure-autoload)
+(swank-clojure-config
+ (setq swank-clojure-binary "~/.emacs.d/tools/clojure"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; slime
+(eval-after-load "slime"
+  '(progn (slime-setup '(slime-repl))))
+(require 'slime)
+(slime-setup)
+
+(defun myslime ()
+  (interactive)
+  (let ((proj (getenv "PROJ_PATH")))
+    (when proj
+      (setenv "CLOJURE_EXTRA_CP"
+	    (reduce (lambda (str acc) (concat acc ":" str))
+		    (remove-if (lambda (p) (or (string-match "javadoc" p) (string-match "sources" p)))
+			       (directory-files (concat proj "lib") t ".jar$"))))))
+  (slime))
+
+(defun clj-import (re)
+  (interactive "sClass regex?: ")
+  (slime-eval-with-transcript
+   `(swank:interactive-eval ,(format "(user/find-classes #\"%s\")" re))
+   nil t
+   `(lambda (s)
+      (with-current-buffer ,(current-buffer)
+        (let ((classes (car (read-from-string s))))
+          (insert (clj-format-import classes)))))))
+
+(defun clj-format-import (classes)
+  (let ((packages (make-hash-table :test 'equal)))
+    (mapc (lambda (class)
+            (let ((pkg (file-name-directory class))
+                  (name (file-name-nondirectory class)))
+              (puthash pkg (cons name (gethash pkg packages '()))
+                       packages )))
+          classes)
+    (let ((imports '()))
+      (maphash (lambda (pkg names)
+                 (push (format "'(%s %s)"
+                               (replace-regexp-in-string
+                                "/" "."
+                                (replace-regexp-in-string "/$" "" pkg))
+                               (mapconcat 'identity names " "))
+                       imports))
+               packages)
+      (format "(import %s)\n"
+              (mapconcat 'identity imports "\n        ")))))
